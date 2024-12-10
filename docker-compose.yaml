@@ -1,0 +1,78 @@
+version: '3'
+services:
+  python_app_1:
+    image: avatar-new:latest
+    network_mode: host
+    environment:
+      - PORT=8081
+    volumes:
+      - /home/faizan/images:/images
+    deploy:
+      restart_policy:
+        condition: on-failure
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]  
+      interval: 120s       
+      timeout: 5s 
+      retries: 3   
+      start_period: 30s 
+  python_app_2:
+    image: avatar-new:latest
+    network_mode: host
+    environment:
+      - PORT=8082
+    volumes:
+      - /home/faizan/images:/images
+    deploy:
+      restart_policy:
+        condition: on-failure
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/health"]  
+      interval: 120s       
+      timeout: 5s 
+      retries: 3   
+      start_period: 30s 
+  python_app_3:
+    image: avatar-new:latest
+    network_mode: host
+    environment:
+      - PORT=8083
+    volumes:
+      - /home/faizan/images:/images
+    deploy:
+      restart_policy:
+        condition: on-failure
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/health"]  
+      interval: 120s       
+      timeout: 5s 
+      retries: 3   
+      start_period: 30s 
+  nginx:
+    image: hypelaunchdev/analytics-nginx
+    network_mode: host
+    depends_on:
+      python_app_1:
+        condition: service_healthy
+      python_app_2:
+        condition: service_healthy
+      python_app_3:
+        condition: service_healthy

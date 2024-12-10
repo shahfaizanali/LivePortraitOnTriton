@@ -10,3 +10,9 @@ insightface
 huggingface_hub[cli]
 mediapipe
 torchgeometry
+aiortc
+aiohttp
+opencv-python-headless
+onnxruntime-gpu
+lapx
+tritonclient[http]

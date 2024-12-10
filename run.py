@@ -106,33 +106,7 @@ if __name__ == '__main__':
             # 按下'q'键退出循环
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
-    vcap.release()
-    if not args.realtime:
-        vout_crop.release()
-        vout_org.release()
-        if video_has_audio(args.dri_video):
-            vsave_crop_path_new = os.path.splitext(vsave_crop_path)[0] + "-audio.mp4"
-            subprocess.call(
-                [FFMPEG, "-i", vsave_crop_path, "-i", args.dri_video,
-                 "-b:v", "10M", "-c:v",
-                 "libx264", "-map", "0:v", "-map", "1:a",
-                 "-c:a", "aac",
-                 "-pix_fmt", "yuv420p", vsave_crop_path_new, "-y", "-shortest"])
-            vsave_org_path_new = os.path.splitext(vsave_org_path)[0] + "-audio.mp4"
-            subprocess.call(
-                [FFMPEG, "-i", vsave_org_path, "-i", args.dri_video,
-                 "-b:v", "10M", "-c:v",
-                 "libx264", "-map", "0:v", "-map", "1:a",
-                 "-c:a", "aac",
-                 "-pix_fmt", "yuv420p", vsave_org_path_new, "-y", "-shortest"])
-
-            print(vsave_crop_path_new)
-            print(vsave_org_path_new)
-        else:
-            print(vsave_crop_path)
-            print(vsave_org_path)
-    else:
-        cv2.destroyAllWindows()
+    
 
     print(
         "inference median time: {} ms/frame, mean time: {} ms/frame".format(np.median(infer_times) * 1000,
