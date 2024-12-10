@@ -52,5 +52,5 @@ WORKDIR /LivePortraitOnTriton
 
 COPY . .
 
-CMD ["python3", "src/server.py"]
+CMD ["python3", "server.py"]
 #RUN cd /root/FasterLivePortrait/src/models/XPose/models/UniPose/ops && python setup.py build install
