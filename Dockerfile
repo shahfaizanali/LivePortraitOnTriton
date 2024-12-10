@@ -48,7 +48,7 @@ RUN cd /opt/ffmpeg \
 RUN pip install --no-cache-dir torch torchvision cupy-cuda12x
 RUN apt update && apt install libgl1 -y && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /root/LivePortraitOnTriton
+WORKDIR /LivePortraitOnTriton
 
 COPY . .
 
