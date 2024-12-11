@@ -52,8 +52,8 @@ infer_params:
   flag_eye_retargeting: False
   flag_lip_retargeting: False
   flag_stitching: True
-  flag_relative_motion: True
-  flag_pasteback: True
+  flag_relative_motion: False
+  flag_pasteback: False
   flag_do_crop: True
   flag_do_rot: True
 
