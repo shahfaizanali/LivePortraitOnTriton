@@ -152,10 +152,7 @@ class VideoTransformTrack(MediaStreamTrack):
             self.infer_times.append(time.time() - t0)
             logger.info(time.time() - t0)
             # dri_crop = cv2.resize(dri_crop, (512, 512))
-            logger.info(type(dri_crop))
-            logger.info(type(out_crop))
             # out_crop = np.concatenate([dri_crop, out_crop], axis=1)
-            logger.info(type(out_crop))
             # out_crop = cv2.cvtColor(out_crop, cv2.COLOR_RGB2BGR)
             
             # #self.ffmpeg_process.stdin.write(animated_face.tobytes())
@@ -339,11 +336,16 @@ async def logging_middleware(request, handler):
     logger.info(f"Sending response: {response.status}")
     return response
 
+async def perf(request):
+    content = open("perf-test.html", "r").read()
+    return web.Response(content_type="text/html", text=content)
+
 if __name__ == "__main__":
     app = web.Application(middlewares=[logging_middleware])
     app.on_shutdown.append(on_shutdown)
     app.router.add_get("/health", health)
     app.router.add_get("/", index)
+    app.router.add_get("/perf", perf)
     app.router.add_post("/offer", offer)
     app.router.add_post("/upload", upload_image)
     app.router.add_post("/update-source-image", update_source_image)
