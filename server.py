@@ -158,7 +158,7 @@ class VideoTransformTrack(MediaStreamTrack):
             # #self.ffmpeg_process.stdin.write(animated_face.tobytes())
             
             # # # Convert back to VideoFrame
-            new_frame = VideoFrame.from_ndarray(out_org, format="rgb24")
+            new_frame = VideoFrame.from_ndarray(out_crop, format="rgb24")
             new_frame.pts = frame.pts
             new_frame.time_base = frame.time_base
             
