@@ -53,14 +53,14 @@ rtc_configuration = RTCConfiguration(
 
 
 # Load a source image for animation (you may want to make this configurable)
-default_source_image = cv2.imread("deepfake_cleveland.png")
-default_source_image = cv2.cvtColor(default_source_image, cv2.COLOR_BGR2RGB)
+# default_source_image = cv2.imread("deepfake_cleveland.png")
+# default_source_image = cv2.cvtColor(default_source_image, cv2.COLOR_BGR2RGB)
 
-image_map = {"default": "deepfake_cleveland.png"}
+image_map = {"default": "avatar-1.png"}
 
 
 # Assign default values to variables
-default_src_image = "deepfake_cleveland.png"
+default_src_image = "avatar-1.png"
 default_dri_video = "assets/examples/driving/d14.mp4"
 default_cfg = "configs/trt_infer.yaml"
 default_paste_back = False
@@ -68,11 +68,11 @@ default_paste_back = False
 
 infer_cfg = OmegaConf.load(default_cfg)
 infer_cfg.infer_params.flag_pasteback = default_paste_back
-pipe = FasterLivePortraitPipeline(cfg=infer_cfg, is_animal=False)
-ret = pipe.prepare_source(default_src_image, realtime=True)
-if not ret:
-    logger.info(f"no face in {default_src_image}! exit!")
-    exit(1)
+# pipe = FasterLivePortraitPipeline(cfg=infer_cfg, is_animal=False)
+# ret = pipe.prepare_source(default_src_image, realtime=True)
+# if not ret:
+#     logger.info(f"no face in {default_src_image}! exit!")
+#     exit(1)
 
 class VideoTransformTrack(MediaStreamTrack):
     kind = "video"
@@ -80,7 +80,7 @@ class VideoTransformTrack(MediaStreamTrack):
     def __init__(self, track):
         super().__init__()
         self.track = track
-        self.source_image = self.load_source_image(image_map["default"])
+        self.source_image = image_map["default"]
         self.last_animated_face = None
         self.initialized = False
         self.uid = str(uuid.uuid4())
@@ -106,7 +106,7 @@ class VideoTransformTrack(MediaStreamTrack):
 
 
     def update_source_image(self, file_key):
-        self.source_image = self.load_source_image(image_map[file_key])
+        self.source_image = image_map[file_key]
         self.initialized = False
 
     def start_ffmpeg_process(self):
@@ -140,11 +140,13 @@ class VideoTransformTrack(MediaStreamTrack):
             img = frame.to_ndarray(format="rgb24")
 
             if not self.initialized:
+                self.pipe = FasterLivePortraitPipeline(cfg=infer_cfg, is_animal=False)
+                self.pipe.prepare_source(default_src_image, realtime=True)
                 self.initialized = True
             
             t0 = time.time()
             first_frame = self.frame_ind == 0
-            dri_crop, out_crop, out_org = pipe.run(img, pipe.src_imgs[0], pipe.src_infos[0], first_frame=first_frame)
+            dri_crop, out_crop, out_org = self.pipe.run(img, self.pipe.src_imgs[0], self.pipe.src_infos[0], first_frame=first_frame)
             self.frame_ind += 1
             if out_crop is None:
                 logger.info(f"no face in driving frame:{self.frame_ind}")
