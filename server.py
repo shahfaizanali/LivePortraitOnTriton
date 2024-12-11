@@ -60,7 +60,7 @@ image_map = {"default": "deepfake_cleveland.png"}
 
 
 # Assign default values to variables
-default_src_image = "assets/examples/source/s12.jpg"
+default_src_image = "deepfake_cleveland.png"
 default_dri_video = "assets/examples/driving/d14.mp4"
 default_cfg = "configs/onnx_infer.yaml"
 default_paste_back = False
@@ -69,7 +69,7 @@ default_paste_back = False
 infer_cfg = OmegaConf.load(default_cfg)
 infer_cfg.infer_params.flag_pasteback = default_paste_back
 pipe = FasterLivePortraitPipeline(cfg=infer_cfg, is_animal=False)
-ret = pipe.prepare_source(default_src_image, realtime=False)
+ret = pipe.prepare_source(default_src_image, realtime=True)
 if not ret:
     print(f"no face in {default_src_image}! exit!")
     exit(1)
@@ -84,6 +84,8 @@ class VideoTransformTrack(MediaStreamTrack):
         self.last_animated_face = None
         self.initialized = False
         self.uid = str(uuid.uuid4())
+        self.infer_times = []
+        self.frame_ind = 0
 
     def load_source_image(self, image_path):
         image = None
@@ -140,17 +142,28 @@ class VideoTransformTrack(MediaStreamTrack):
             if not self.initialized:
                 self.initialized = True
             
-          
-
+            t0 = time.time()
+            first_frame = self.frame_ind == 0
+            dri_crop, out_crop, out_org = pipe.run(frame, pipe.src_imgs[0], pipe.src_infos[0], first_frame=first_frame)
+            self.frame_ind += 1
+            if out_crop is None:
+                print(f"no face in driving frame:{self.frame_ind}")
+                # continue
+            self.infer_times.append(time.time() - t0)
+            print(time.time() - t0)
+            dri_crop = cv2.resize(dri_crop, (512, 512))
+            out_crop = np.concatenate([dri_crop, out_crop], axis=1)
+            out_crop = cv2.cvtColor(out_crop, cv2.COLOR_RGB2BGR)
+            
             #self.ffmpeg_process.stdin.write(animated_face.tobytes())
             
             # # Convert back to VideoFrame
-            # new_frame = VideoFrame.from_ndarray(animated_face, format="rgb24")
-            # new_frame.pts = frame.pts
-            # new_frame.time_base = frame.time_base
+            new_frame = VideoFrame.from_ndarray(out_crop, format="rgb24")
+            new_frame.pts = frame.pts
+            new_frame.time_base = frame.time_base
             
             # logger.debug("Returning processed frame")
-            return frame
+            return new_frame
         
         except Exception as e:
             logger.error(f"Error in VideoTransformTrack.recv: {e}")
