@@ -54,8 +54,8 @@ infer_params:
   flag_stitching: True
   flag_relative_motion: False
   flag_pasteback: False
-  flag_do_crop: True
-  flag_do_rot: True
+  flag_do_crop: False
+  flag_do_rot: False
 
   # NOT EXPOERTED PARAMS
   lip_normalize_threshold: 0.03 # threshold for flag_normalize_lip
