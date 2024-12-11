@@ -50,7 +50,7 @@ infer_params:
   flag_source_video_eye_retargeting: False
   flag_video_editing_head_rotation: False
   flag_eye_retargeting: True
-  flag_lip_retargeting: True
+  flag_lip_retargeting: False
   flag_stitching: True
   flag_relative_motion: False
   flag_pasteback: False
