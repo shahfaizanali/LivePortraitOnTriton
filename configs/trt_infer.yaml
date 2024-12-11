@@ -34,6 +34,7 @@ models:
     predict_type: "trt"
     model_path: "./checkpoints/liveportrait_onnx/stitching_lip.trt"
 
+
 crop_params:
   src_dsize: 512
   src_scale: 2.3
@@ -46,16 +47,16 @@ crop_params:
 
 infer_params:
   flag_crop_driving_video: False
-  flag_normalize_lip: False
+  flag_normalize_lip: True
   flag_source_video_eye_retargeting: False
   flag_video_editing_head_rotation: False
   flag_eye_retargeting: False
-  flag_lip_retargeting: True
+  flag_lip_retargeting: False
   flag_stitching: True
-  flag_relative_motion: False
-  flag_pasteback: False
-  flag_do_crop: False
-  flag_do_rot: False
+  flag_relative_motion: True
+  flag_pasteback: True
+  flag_do_crop: True
+  flag_do_rot: True
 
   # NOT EXPOERTED PARAMS
   lip_normalize_threshold: 0.03 # threshold for flag_normalize_lip
