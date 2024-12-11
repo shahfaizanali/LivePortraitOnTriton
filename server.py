@@ -1,16 +1,36 @@
+import argparse
 import asyncio
-import os
-import uuid
-import cv2
-import numpy as np
-from aiohttp import web
-from av import VideoFrame
-from aiortc import MediaStreamTrack, RTCPeerConnection, RTCSessionDescription, RTCConfiguration, RTCIceServer, RTCRtpSender, RTCIceCandidate
-from aiortc.contrib.media import MediaRelay
+import datetime
 import json
 import logging
-from typing import List
+import os
+import platform
+import pdb
 import subprocess
+import time
+import uuid
+from typing import List
+import cv2
+import ffmpeg
+import numpy as np
+from aiohttp import web
+from aiortc import (
+    MediaStreamTrack,
+    RTCConfiguration,
+    RTCIceCandidate,
+    RTCIceServer,
+    RTCPeerConnection,
+    RTCSessionDescription,
+    RTCRtpSender,
+)
+from aiortc.contrib.media import MediaRelay
+from av import VideoFrame
+from omegaconf import OmegaConf
+
+from src.pipelines.faster_live_portrait_pipeline import FasterLivePortraitPipeline
+from src.utils.utils import video_has_audio
+
+
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -38,6 +58,21 @@ default_source_image = cv2.cvtColor(default_source_image, cv2.COLOR_BGR2RGB)
 
 image_map = {"default": "deepfake_cleveland.png"}
 
+
+# Assign default values to variables
+default_src_image = "deepfake_cleveland.png"
+default_dri_video = "assets/examples/driving/d14.mp4"
+default_cfg = "configs/trt_infer.yaml"
+default_paste_back = False
+
+
+infer_cfg = OmegaConf.load(default_cfg)
+infer_cfg.infer_params.flag_pasteback = default_paste_back
+pipe = FasterLivePortraitPipeline(cfg=infer_cfg, is_animal=False)
+ret = pipe.prepare_source(default_src_image, realtime=True)
+if not ret:
+    print(f"no face in {default_src_image}! exit!")
+    exit(1)
 
 class VideoTransformTrack(MediaStreamTrack):
     kind = "video"

@@ -1,7 +1,7 @@
 FROM alfg/nginx-rtmp:latest
 
 # Copy the custom NGINX configuration to the container
-# COPY nginx.conf /etc/nginx/nginx.conf
+COPY nginx.conf /etc/nginx/nginx.conf
 
 RUN mkdir /etc/nginx/ssl
 

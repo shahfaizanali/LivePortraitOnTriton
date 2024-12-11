@@ -34,42 +34,6 @@ models:
     predict_type: "trt"
     model_path: "./checkpoints/liveportrait_onnx/stitching_lip.trt"
 
-animal_models:
-  warping_spade:
-    name: "WarpingSpadeModel"
-    predict_type: "trt"
-    model_path: "./checkpoints/liveportrait_animal_onnx/warping_spade-fix.trt"
-  motion_extractor:
-    name: "MotionExtractorModel"
-    predict_type: "trt"
-    model_path: "./checkpoints/liveportrait_animal_onnx/motion_extractor.trt"
-  app_feat_extractor:
-    name: "AppearanceFeatureExtractorModel"
-    predict_type: "trt"
-    model_path: "./checkpoints/liveportrait_animal_onnx/appearance_feature_extractor.trt"
-  stitching:
-    name: "StitchingModel"
-    predict_type: "trt"
-    model_path: "./checkpoints/liveportrait_animal_onnx/stitching.trt"
-  stitching_eye_retarget:
-    name: "StitchingModel"
-    predict_type: "trt"
-    model_path: "./checkpoints/liveportrait_animal_onnx/stitching_eye.trt"
-  stitching_lip_retarget:
-    name: "StitchingModel"
-    predict_type: "trt"
-    model_path: "./checkpoints/liveportrait_animal_onnx/stitching_lip.trt"
-  landmark:
-    name: "LandmarkModel"
-    predict_type: "trt"
-    model_path: "./checkpoints/liveportrait_onnx/landmark.trt"
-  face_analysis:
-    name: "FaceAnalysisModel"
-    predict_type: "trt"
-    model_path:
-      - "./checkpoints/liveportrait_onnx/retinaface_det_static.trt"
-      - "./checkpoints/liveportrait_onnx/face_2dpose_106_static.trt"
-
 crop_params:
   src_dsize: 512
   src_scale: 2.3

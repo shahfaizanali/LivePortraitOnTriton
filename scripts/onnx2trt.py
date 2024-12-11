@@ -33,7 +33,9 @@ class EngineBuilder:
 
         # Builder creation
         self.builder = trt.Builder(self.trt_logger)
+        plugin = self.builder.get_plugin_registry().load_library("./libgrid_sample_3d_plugin.so")
         self.config = self.builder.create_builder_config()
+        self.config.plugins_to_serialize = [plugin]
 
         # Workspace size (12 GB)
         self.config.set_memory_pool_limit(trt.MemoryPoolType.WORKSPACE, 12 * (2 ** 30))
@@ -49,7 +51,7 @@ class EngineBuilder:
         self.parser = None
 
         # Load custom plugins
-        load_plugins(self.trt_logger)
+        # load_plugins(self.trt_logger)
 
     def create_network(self, onnx_path):
     # Network creation flags
