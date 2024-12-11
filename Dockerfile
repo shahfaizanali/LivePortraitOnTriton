@@ -1,4 +1,4 @@
-FROM nvcr.io/nvidia/tensorrt:24.11-py3
+FROM nvcr.io/nvidia/tensorrt:24.04-py3
 
 COPY requirements.txt /opt/requirements.txt
 
