@@ -144,7 +144,7 @@ class VideoTransformTrack(MediaStreamTrack):
             
             t0 = time.time()
             first_frame = self.frame_ind == 0
-            dri_crop, out_crop, out_org = pipe.run(frame, pipe.src_imgs[0], pipe.src_infos[0], first_frame=first_frame)
+            dri_crop, out_crop, out_org = pipe.run(img, pipe.src_imgs[0], pipe.src_infos[0], first_frame=first_frame)
             # self.frame_ind += 1
             # if out_crop is None:
             #     logger.info(f"no face in driving frame:{self.frame_ind}")
