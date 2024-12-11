@@ -141,7 +141,7 @@ class VideoTransformTrack(MediaStreamTrack):
 
             if not self.initialized:
                 self.pipe = FasterLivePortraitPipeline(cfg=infer_cfg, is_animal=False)
-                self.pipe.prepare_source(default_src_image, realtime=True)
+                self.pipe.prepare_source(self.source_image, realtime=True)
                 self.initialized = True
             
             t0 = time.time()
