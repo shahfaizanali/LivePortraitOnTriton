@@ -156,7 +156,7 @@ class VideoTransformTrack(MediaStreamTrack):
             logger.info(type(out_crop))
             # out_crop = np.concatenate([dri_crop, out_crop], axis=1)
             logger.info(type(out_crop))
-            out_crop = cv2.cvtColor(out_crop, cv2.COLOR_RGB2BGR)
+            # out_crop = cv2.cvtColor(out_crop, cv2.COLOR_RGB2BGR)
             
             # #self.ffmpeg_process.stdin.write(animated_face.tobytes())
             
