@@ -71,7 +71,7 @@ infer_cfg.infer_params.flag_pasteback = default_paste_back
 pipe = FasterLivePortraitPipeline(cfg=infer_cfg, is_animal=False)
 ret = pipe.prepare_source(default_src_image, realtime=True)
 if not ret:
-    print(f"no face in {default_src_image}! exit!")
+    logger.info(f"no face in {default_src_image}! exit!")
     exit(1)
 
 class VideoTransformTrack(MediaStreamTrack):
@@ -147,15 +147,15 @@ class VideoTransformTrack(MediaStreamTrack):
             dri_crop, out_crop, out_org = pipe.run(frame, pipe.src_imgs[0], pipe.src_infos[0], first_frame=first_frame)
             self.frame_ind += 1
             if out_crop is None:
-                print(f"no face in driving frame:{self.frame_ind}")
+                logger.info(f"no face in driving frame:{self.frame_ind}")
                 return frame
             self.infer_times.append(time.time() - t0)
-            print(time.time() - t0)
+            logger.info(time.time() - t0)
             dri_crop = cv2.resize(dri_crop, (512, 512))
-            print(type(dri_crop))
-            print(type(out_crop))
+            logger.info(type(dri_crop))
+            logger.info(type(out_crop))
             out_crop = np.concatenate([dri_crop, out_crop], axis=1)
-            print(type(out_crop))
+            logger.info(type(out_crop))
             out_crop = cv2.cvtColor(out_crop, cv2.COLOR_RGB2BGR)
             
             #self.ffmpeg_process.stdin.write(animated_face.tobytes())
