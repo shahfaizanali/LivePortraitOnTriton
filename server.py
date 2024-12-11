@@ -148,11 +148,14 @@ class VideoTransformTrack(MediaStreamTrack):
             self.frame_ind += 1
             if out_crop is None:
                 print(f"no face in driving frame:{self.frame_ind}")
-                # continue
+                return frame
             self.infer_times.append(time.time() - t0)
             print(time.time() - t0)
             dri_crop = cv2.resize(dri_crop, (512, 512))
+            print(type(dri_crop))
+            print(type(out_crop))
             out_crop = np.concatenate([dri_crop, out_crop], axis=1)
+            print(type(out_crop))
             out_crop = cv2.cvtColor(out_crop, cv2.COLOR_RGB2BGR)
             
             #self.ffmpeg_process.stdin.write(animated_face.tobytes())
