@@ -151,7 +151,7 @@ class VideoTransformTrack(MediaStreamTrack):
                 return frame
             self.infer_times.append(time.time() - t0)
             logger.info(time.time() - t0)
-            dri_crop = cv2.resize(dri_crop, (512, 512))
+            # dri_crop = cv2.resize(dri_crop, (512, 512))
             logger.info(type(dri_crop))
             logger.info(type(out_crop))
             # out_crop = np.concatenate([dri_crop, out_crop], axis=1)
@@ -161,7 +161,7 @@ class VideoTransformTrack(MediaStreamTrack):
             # #self.ffmpeg_process.stdin.write(animated_face.tobytes())
             
             # # # Convert back to VideoFrame
-            new_frame = VideoFrame.from_ndarray(out_crop, format="rgb24")
+            new_frame = VideoFrame.from_ndarray(out_org, format="rgb24")
             new_frame.pts = frame.pts
             new_frame.time_base = frame.time_base
             
