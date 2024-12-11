@@ -145,28 +145,28 @@ class VideoTransformTrack(MediaStreamTrack):
             t0 = time.time()
             first_frame = self.frame_ind == 0
             dri_crop, out_crop, out_org = pipe.run(frame, pipe.src_imgs[0], pipe.src_infos[0], first_frame=first_frame)
-            self.frame_ind += 1
-            if out_crop is None:
-                logger.info(f"no face in driving frame:{self.frame_ind}")
-                return frame
-            self.infer_times.append(time.time() - t0)
-            logger.info(time.time() - t0)
-            dri_crop = cv2.resize(dri_crop, (512, 512))
-            logger.info(type(dri_crop))
-            logger.info(type(out_crop))
-            out_crop = np.concatenate([dri_crop, out_crop], axis=1)
-            logger.info(type(out_crop))
-            out_crop = cv2.cvtColor(out_crop, cv2.COLOR_RGB2BGR)
+            # self.frame_ind += 1
+            # if out_crop is None:
+            #     logger.info(f"no face in driving frame:{self.frame_ind}")
+            #     return frame
+            # self.infer_times.append(time.time() - t0)
+            # logger.info(time.time() - t0)
+            # dri_crop = cv2.resize(dri_crop, (512, 512))
+            # logger.info(type(dri_crop))
+            # logger.info(type(out_crop))
+            # out_crop = np.concatenate([dri_crop, out_crop], axis=1)
+            # logger.info(type(out_crop))
+            # out_crop = cv2.cvtColor(out_crop, cv2.COLOR_RGB2BGR)
             
-            #self.ffmpeg_process.stdin.write(animated_face.tobytes())
+            # #self.ffmpeg_process.stdin.write(animated_face.tobytes())
             
-            # # Convert back to VideoFrame
-            new_frame = VideoFrame.from_ndarray(out_crop, format="rgb24")
-            new_frame.pts = frame.pts
-            new_frame.time_base = frame.time_base
+            # # # Convert back to VideoFrame
+            # new_frame = VideoFrame.from_ndarray(out_crop, format="rgb24")
+            # new_frame.pts = frame.pts
+            # new_frame.time_base = frame.time_base
             
             # logger.debug("Returning processed frame")
-            return new_frame
+            return frame
         
         except Exception as e:
             logger.error(f"Error in VideoTransformTrack.recv: {e}")
