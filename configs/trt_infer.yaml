@@ -46,7 +46,7 @@ crop_params:
 
 
 infer_params:
-  flag_crop_driving_video: False
+  flag_crop_driving_video: True
   flag_normalize_lip: True
   flag_source_video_eye_retargeting: False
   flag_video_editing_head_rotation: False
