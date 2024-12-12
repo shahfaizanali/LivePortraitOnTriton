@@ -60,7 +60,7 @@ image_map = {"default": "deepfake_cleveland.png"}
 
 
 # Assign default values to variables
-default_src_image = "avatar-1.png"
+default_src_image = "deepfake_cleveland.png"
 default_dri_video = "assets/examples/driving/d14.mp4"
 default_cfg = "configs/trt_infer.yaml"
 default_paste_back = False
