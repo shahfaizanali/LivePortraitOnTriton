@@ -18,7 +18,6 @@ numpy_to_triton_dtype = {
     np.float32: "FP32",
     np.float64: "FP64",
     np.bool_: "BOOL",
-    np.bool: "BOOL",
 }
 
 class TritonPredictor:
