@@ -3,17 +3,12 @@
 # @Email   : wenshaoguo0611@gmail.com
 # @Project : FasterLivePortrait
 # @FileName: face_analysis_model.py
-import pdb
 
 import numpy as np
 from insightface.app.common import Face
 import cv2
-from .predictor import get_predictor
+from .new_predictor import get_predictor
 from ..utils import face_align
-import torch
-from torch.cuda import nvtx
-from .predictor import numpy_to_torch_dtype_dict
-
 
 def sort_by_direction(faces, direction: str = 'large-small', face_center=None):
     if len(faces) <= 0:
@@ -37,75 +32,55 @@ def sort_by_direction(faces, direction: str = 'large-small', face_center=None):
                 (face['bbox'][3] + face['bbox'][1]) / 2 - face_center[1]) ** 2) ** 0.5)
     return faces
 
-
 def distance2bbox(points, distance, max_shape=None):
-    """Decode distance prediction to bounding box.
-
-    Args:
-        points (Tensor): Shape (n, 2), [x, y].
-        distance (Tensor): Distance from the given point to 4
-            boundaries (left, top, right, bottom).
-        max_shape (tuple): Shape of the image.
-
-    Returns:
-        Tensor: Decoded bboxes.
-    """
+    """Decode distance prediction to bounding box."""
     x1 = points[:, 0] - distance[:, 0]
     y1 = points[:, 1] - distance[:, 1]
     x2 = points[:, 0] + distance[:, 2]
     y2 = points[:, 1] + distance[:, 3]
     if max_shape is not None:
-        x1 = x1.clamp(min=0, max=max_shape[1])
-        y1 = y1.clamp(min=0, max=max_shape[0])
-        x2 = x2.clamp(min=0, max=max_shape[1])
-        y2 = y2.clamp(min=0, max=max_shape[0])
+        x1 = x1.clip(min=0, max=max_shape[1])
+        y1 = y1.clip(min=0, max=max_shape[0])
+        x2 = x2.clip(min=0, max=max_shape[1])
+        y2 = y2.clip(min=0, max=max_shape[0])
     return np.stack([x1, y1, x2, y2], axis=-1)
 
-
 def distance2kps(points, distance, max_shape=None):
-    """Decode distance prediction to bounding box.
-
-    Args:
-        points (Tensor): Shape (n, 2), [x, y].
-        distance (Tensor): Distance from the given point to 4
-            boundaries (left, top, right, bottom).
-        max_shape (tuple): Shape of the image.
-
-    Returns:
-        Tensor: Decoded bboxes.
-    """
+    """Decode distance prediction to keypoints."""
     preds = []
     for i in range(0, distance.shape[1], 2):
         px = points[:, i % 2] + distance[:, i]
         py = points[:, i % 2 + 1] + distance[:, i + 1]
         if max_shape is not None:
-            px = px.clamp(min=0, max=max_shape[1])
-            py = py.clamp(min=0, max=max_shape[0])
+            px = px.clip(min=0, max=max_shape[1])
+            py = py.clip(min=0, max=max_shape[0])
         preds.append(px)
         preds.append(py)
     return np.stack(preds, axis=-1)
 
-
 class FaceAnalysisModel:
     def __init__(self, **kwargs):
-        self.model_paths = kwargs.get("model_path", [])
-        self.predict_type = kwargs.get("predict_type", "trt")
-        self.device = torch.cuda.current_device()
-        self.cudaStream = torch.cuda.current_stream().cuda_stream
-
-        assert self.model_paths
-        self.face_det = get_predictor(predict_type=self.predict_type, model_path=self.model_paths[0])
-        self.face_det.input_spec()
-        self.face_det.output_spec()
-        self.face_pose = get_predictor(predict_type=self.predict_type, model_path=self.model_paths[1])
-        self.face_pose.input_spec()
-        self.face_pose.output_spec()
-
-        # face det
+        """
+        Initializes the FaceAnalysisModel with Triton predictors for face detection and face pose estimation.
+        
+        Expected keyword arguments:
+            - model_path: List of model identifiers or names for Triton.
+            - triton_url: URL of the Triton Inference Server (default: 'localhost:8000').
+            - debug: Boolean flag to enable debug mode (default: False).
+        """
+        self.model_names = kwargs.get("model_name", ["retinaface_det_static", "face_2dpose_106_static"])
+        self.triton_url = kwargs.get("triton_url", "localhost:8000")
+        self.debug = kwargs.get("debug", False)
+        
+        assert self.model_names, "At least one model name must be provided."
+        
+        # Initialize Triton predictors
+        self.face_det = get_predictor(model_name=self.model_names[0], url=self.triton_url, protocol="http", debug=self.debug)
+        self.face_pose = get_predictor(model_name=self.model_names[1], url=self.triton_url, protocol="http", debug=self.debug)
+        
+        # Face detection parameters
         self.input_mean = 127.5
         self.input_std = 128.0
-        # print(self.output_names)
-        # assert len(outputs)==10 or len(outputs)==15
         self.use_kps = False
         self._anchor_ratio = 1.0
         self._num_anchors = 1
@@ -113,20 +88,22 @@ class FaceAnalysisModel:
         self.nms_thresh = 0.4
         self.det_thresh = 0.5
         self.input_size = (512, 512)
-        if len(self.face_det.outputs) == 6:
+        
+        output_length = len(self.face_det.output_spec())
+        if output_length == 6:
             self.fmc = 3
             self._feat_stride_fpn = [8, 16, 32]
             self._num_anchors = 2
-        elif len(self.face_det.outputs) == 9:
+        elif output_length == 9:
             self.fmc = 3
             self._feat_stride_fpn = [8, 16, 32]
             self._num_anchors = 2
             self.use_kps = True
-        elif len(self.face_det.outputs) == 10:
+        elif output_length == 10:
             self.fmc = 5
             self._feat_stride_fpn = [8, 16, 32, 64, 128]
             self._num_anchors = 1
-        elif len(self.face_det.outputs) == 15:
+        elif output_length == 15:
             self.fmc = 5
             self._feat_stride_fpn = [8, 16, 32, 64, 128]
             self._num_anchors = 1
@@ -165,8 +142,16 @@ class FaceAnalysisModel:
 
         return keep
 
-    def detect_face(self, *data):
-        img = data[0]  # BGR mode
+    def detect_face(self, img):
+        """
+        Detects faces in an image using the Triton-based face detection model.
+        
+        Args:
+            img (np.ndarray): Input image in BGR format.
+        
+        Returns:
+            Tuple[np.ndarray, Optional[np.ndarray]]: Detected bounding boxes and keypoints.
+        """
         im_ratio = float(img.shape[0]) / img.shape[1]
         input_size = self.input_size
         model_ratio = float(input_size[1]) / input_size[0]
@@ -184,26 +169,27 @@ class FaceAnalysisModel:
         scores_list = []
         bboxes_list = []
         kpss_list = []
-        input_size = tuple(img.shape[0:2][::-1])
+        input_size_tuple = tuple(img.shape[0:2][::-1])
 
-        det_img = cv2.cvtColor(det_img, cv2.COLOR_BGR2RGB)
-        det_img = np.transpose(det_img, (2, 0, 1))
-        det_img = (det_img - self.input_mean) / self.input_std
-        if self.predict_type == "trt":
-            nvtx.range_push("forward")
-            feed_dict = {}
-            inp = self.face_det.inputs[0]
-            det_img_torch = torch.from_numpy(det_img[None]).to(device=self.device,
-                                                               dtype=numpy_to_torch_dtype_dict[inp['dtype']])
-            feed_dict[inp['name']] = det_img_torch
-            preds_dict = self.face_det.predict(feed_dict, self.cudaStream)
-            outs = []
-            for key in ["448", "471", "494", "451", "474", "497", "454", "477", "500"]:
-                outs.append(preds_dict[key].cpu().numpy())
-            o448, o471, o494, o451, o474, o497, o454, o477, o500 = outs
-            nvtx.range_pop()
-        else:
-            o448, o471, o494, o451, o474, o497, o454, o477, o500 = self.face_det.predict(det_img[None])
+        det_img_rgb = cv2.cvtColor(det_img, cv2.COLOR_BGR2RGB)
+        det_img_normalized = (det_img_rgb.astype(np.float32) - self.input_mean) / self.input_std
+        det_img_transposed = np.transpose(det_img_normalized, (2, 0, 1))
+        det_img_batch = np.expand_dims(det_img_transposed, axis=0).astype(np.float32)
+
+        # Prepare input dictionary for Triton
+        input_dict = {
+            self.face_det.input_spec()[0][0]: det_img_batch  # Assuming single input
+        }
+
+        # Perform inference
+        preds_dict = self.face_det.predict(input_dict)
+
+        # Extract outputs
+        outs = []
+        for key in self.face_det.output_spec():
+            outs.append(preds_dict[key[0]])  # key[0] is the output name
+        o448, o471, o494, o451, o474, o497, o454, o477, o500 = outs[:9]  # Adjust based on actual output names
+
         faces_det = [o448, o471, o494, o451, o474, o497, o454, o477, o500]
         input_height = det_img.shape[1]
         input_width = det_img.shape[2]
@@ -221,9 +207,8 @@ class FaceAnalysisModel:
             if key in self.center_cache:
                 anchor_centers = self.center_cache[key]
             else:
-                # solution-3:
+                # Generate anchor centers
                 anchor_centers = np.stack(np.mgrid[:height, :width][::-1], axis=-1).astype(np.float32)
-                # print(anchor_centers.shape)
                 anchor_centers = (anchor_centers * stride).reshape((-1, 2))
                 if self._num_anchors > 1:
                     anchor_centers = np.stack([anchor_centers] * self._num_anchors, axis=1).reshape((-1, 2))
@@ -238,10 +223,10 @@ class FaceAnalysisModel:
             bboxes_list.append(pos_bboxes)
             if self.use_kps:
                 kpss = distance2kps(anchor_centers, kps_preds)
-                # kpss = kps_preds
                 kpss = kpss.reshape((kpss.shape[0], -1, 2))
                 pos_kpss = kpss[pos_inds]
                 kpss_list.append(pos_kpss)
+        
         scores = np.vstack(scores_list)
         scores_ravel = scores.ravel()
         order = scores_ravel.argsort()[::-1]
@@ -259,13 +244,17 @@ class FaceAnalysisModel:
             kpss = None
         return det, kpss
 
-    def estimate_face_pose(self, *data):
+    def estimate_face_pose(self, img, face):
         """
-        检测脸部关键点
-        :param data:
-        :return:
+        Estimates the facial landmarks for a detected face using the Triton-based face pose estimation model.
+        
+        Args:
+            img (np.ndarray): Original input image in BGR format.
+            face (Face): A Face object containing bounding box information.
+        
+        Returns:
+            np.ndarray: Estimated facial landmarks.
         """
-        img, face = data
         bbox = face.bbox
         w, h = (bbox[2] - bbox[0]), (bbox[3] - bbox[1])
         center = (bbox[2] + bbox[0]) / 2, (bbox[3] + bbox[1]) / 2
@@ -273,50 +262,65 @@ class FaceAnalysisModel:
         input_size = (192, 192)
         _scale = input_size[0] / (max(w, h) * 1.5)
         aimg, M = face_align.transform(img, center, input_size[0], _scale, rotate)
-        input_size = tuple(aimg.shape[0:2][::-1])
+        input_size_tuple = tuple(aimg.shape[0:2][::-1])
 
-        aimg = cv2.cvtColor(aimg, cv2.COLOR_BGR2RGB)
-        aimg = np.transpose(aimg, (2, 0, 1))
-        if self.predict_type == "trt":
-            nvtx.range_push("forward")
-            feed_dict = {}
-            inp = self.face_pose.inputs[0]
-            det_img_torch = torch.from_numpy(aimg[None]).to(device=self.device,
-                                                            dtype=numpy_to_torch_dtype_dict[inp['dtype']])
-            feed_dict[inp['name']] = det_img_torch
-            preds_dict = self.face_pose.predict(feed_dict, self.cudaStream)
-            outs = []
-            for i, out in enumerate(self.face_pose.outputs):
-                outs.append(preds_dict[out["name"]].cpu().numpy())
-            pred = outs[0]
-            nvtx.range_pop()
-        else:
-            pred = self.face_pose.predict(aimg[None])[0]
+        aimg_rgb = cv2.cvtColor(aimg, cv2.COLOR_BGR2RGB)
+        aimg_normalized = (aimg_rgb.astype(np.float32) - self.input_mean) / self.input_std
+        aimg_transposed = np.transpose(aimg_normalized, (2, 0, 1))
+        aimg_batch = np.expand_dims(aimg_transposed, axis=0).astype(np.float32)
+
+        # Prepare input dictionary for Triton
+        input_dict = {
+            self.face_pose.input_spec()[0][0]: aimg_batch  # Assuming single input
+        }
+
+        # Perform inference
+        preds_dict = self.face_pose.predict(input_dict)
+
+        # Extract output
+        pred = None
+        for out in self.face_pose.output_spec():
+            pred = preds_dict[out[0]]  # Assuming single output
+            break  # Only take the first output
+        if pred is None:
+            raise ValueError("No output received from the pose estimation model.")
+
         pred = pred.reshape((-1, 2))
         if self.lmk_num < pred.shape[0]:
             pred = pred[self.lmk_num * -1:, :]
         pred[:, 0:2] += 1
-        pred[:, 0:2] *= (input_size[0] // 2)
+        pred[:, 0:2] *= (input_size_tuple[0] // 2)
         if pred.shape[1] == 3:
-            pred[:, 2] *= (input_size[0] // 2)
+            pred[:, 2] *= (input_size_tuple[0] // 2)
 
         IM = cv2.invertAffineTransform(M)
         pred = face_align.trans_points(pred, IM)
-        face["landmark"] = pred
+        face.landmark = pred
         return pred
 
-    def predict(self, *data, **kwargs):
-        bboxes, kpss = self.detect_face(*data)
-        if bboxes.shape[0] == 0:
+    def predict(self, img):
+        """
+        Detects faces and estimates their landmarks in the given image.
+        
+        Args:
+            img (np.ndarray): Input image in BGR format.
+        
+        Returns:
+            List[np.ndarray]: List of landmarks for each detected face.
+        """
+        dets, kpss = self.detect_face(img)
+        if dets.shape[0] == 0:
             return []
+        
         ret = []
-        for i in range(bboxes.shape[0]):
-            bbox = bboxes[i, 0:4]
-            det_score = bboxes[i, 4]
-            kps = kpss[i]
+        for i in range(dets.shape[0]):
+            bbox = dets[i, 0:4]
+            det_score = dets[i, 4]
+            kps = kpss[i] if self.use_kps else None
             face = Face(bbox=bbox, kps=kps, det_score=det_score)
-            self.estimate_face_pose(data[0], face)
+            self.estimate_face_pose(img, face)
             ret.append(face)
+        
         ret = sort_by_direction(ret, 'large-small', None)
         outs = [x.landmark for x in ret]
         return outs
