@@ -7,7 +7,7 @@
 import numpy as np
 from insightface.app.common import Face
 import cv2
-from .predictor import get_predictor
+from .new_predictor import get_predictor
 from ..utils import face_align
 
 def sort_by_direction(faces, direction: str = 'large-small', face_center=None):
@@ -68,7 +68,7 @@ class FaceAnalysisModel:
             - triton_url: URL of the Triton Inference Server (default: 'localhost:8000').
             - debug: Boolean flag to enable debug mode (default: False).
         """
-        self.model_names = kwargs.get("model_name", [])
+        self.model_names = kwargs.get("model_name", ["retinaface_det_static", "face_2dpose_106_static"])
         self.triton_url = kwargs.get("triton_url", "localhost:8000")
         self.debug = kwargs.get("debug", False)
         
