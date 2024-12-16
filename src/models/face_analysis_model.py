@@ -214,14 +214,14 @@ class FaceAnalysisModel:
         preds_dict = self.face_det.predict(input_dict)
 
         # Extract outputs based on output names
-        # Replace '448' and others with your actual Triton output names
+        # Replace '448', '451', etc., with your actual Triton output names if different
         outs = []
         for out_spec in self.face_det.output_spec():
-            output_name = out_spec['name']
+            output_name = out_spec[0]  # Corrected: Access by index
             if output_name in preds_dict:
                 outs.append(preds_dict[output_name])
                 if self.debug:
-                    print(f"Output '{output_name}' retrieved with shape {preds_dict[output_name].shape}")
+                    print(f"Triton output -> {output_name} -> {preds_dict[output_name].shape} -> {preds_dict[out_spec[0]].dtype}")
             else:
                 raise ValueError(f"Expected output '{output_name}' not found in Triton response.")
 
@@ -231,7 +231,7 @@ class FaceAnalysisModel:
                 print(f"Output {idx}: Shape {output.shape}")
 
         # Create a dictionary mapping output names to their data
-        output_dict = {spec['name']: outs[idx] for idx, spec in enumerate(self.face_det.output_spec())}
+        output_dict = {spec[0]: outs[idx] for idx, spec in enumerate(self.face_det.output_spec())}
 
         # Assign outputs based on their names
         scores_stride8 = output_dict.get('448')    # Shape: [-1, 1]
@@ -270,8 +270,8 @@ class FaceAnalysisModel:
             scores, bbox_preds, kps_preds = stride_outputs[idx]
             
             # Reshape outputs
-            scores = scores.reshape(-1)
-            bbox_preds = bbox_preds.reshape(-1, 4)
+            scores = scores.reshape(-1)  # Flatten batch and anchors
+            bbox_preds = bbox_preds.reshape(-1, 4)  # Flatten batch and anchors
 
             if self.use_kps:
                 kps_preds = kps_preds.reshape(-1, 10)
@@ -372,7 +372,7 @@ class FaceAnalysisModel:
             raise ValueError("Expected output 'fc1' not found in Triton response.")
 
         if self.debug:
-            print(f"Pose Output 'fc1' retrieved with shape {pred.shape}")
+            print(f"Triton output -> fc1 -> {pred.shape} -> {pred.dtype}")
 
         # Process the pose output
         pred = pred.reshape((-1, 2))
