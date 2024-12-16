@@ -14,7 +14,7 @@ cd nginx
 
 docker build -t hypelaunchdev/analytics-nginx .
 
-docker push hypelaunchdev/analytics-nginx
+# docker push hypelaunchdev/analytics-nginx
 
 docker stop nginx-avatar
 
