@@ -88,13 +88,13 @@ class FaceAnalysisModel:
         Initializes the FaceAnalysisModel with Triton predictors for face detection and face pose estimation.
 
         Expected keyword arguments:
-            - model_name: List of model identifiers or names for Triton (e.g., ["face_detection_model", "face_pose_model"]).
+            - model_name: List of model identifiers or names for Triton (e.g., ["retinaface_det_static", "face_2dpose_106_static"]).
             - triton_url: URL of the Triton Inference Server (default: 'localhost:8000').
             - debug: Boolean flag to enable debug mode (default: False).
         """
         self.model_names = kwargs.get("model_name", ["retinaface_det_static", "face_2dpose_106_static"])
         self.triton_url = kwargs.get("triton_url", "localhost:8000")
-        self.debug = kwargs.get("debug", True)
+        self.debug = kwargs.get("debug", False)
 
         assert self.model_names, "At least two model names must be provided (face detection and face pose)."
         assert len(self.model_names) >= 2, "Please provide both face detection and face pose model names."
@@ -191,7 +191,7 @@ class FaceAnalysisModel:
         det_img = np.zeros((input_size[1], input_size[0], 3), dtype=np.uint8)
         det_img[:new_height, :new_width, :] = resized_img
 
-        scores_list = []
+        scores_list_final = []
         bboxes_list = []
         kpss_list = []
         input_size_tuple = tuple(img.shape[0:2][::-1])
@@ -214,10 +214,10 @@ class FaceAnalysisModel:
         preds_dict = self.face_det.predict(input_dict)
 
         # Extract outputs based on output names
-        # Replace 'scores' and 'bbox_preds' with your actual Triton output names
+        # Replace '448' and others with your actual Triton output names
         outs = []
         for out_spec in self.face_det.output_spec():
-            output_name = out_spec[0]
+            output_name = out_spec['name']
             if output_name in preds_dict:
                 outs.append(preds_dict[output_name])
                 if self.debug:
@@ -230,67 +230,103 @@ class FaceAnalysisModel:
             for idx, output in enumerate(outs):
                 print(f"Output {idx}: Shape {output.shape}")
 
-        # Example mapping based on expected outputs
-        output_dict = {spec[0]: outs[idx] for idx, spec in enumerate(self.face_det.output_spec())}
+        # Create a dictionary mapping output names to their data
+        output_dict = {spec['name']: outs[idx] for idx, spec in enumerate(self.face_det.output_spec())}
 
-        # Extract specific outputs
-        # Ensure these names match your Triton model's output tensor names
-        scores = output_dict.get('scores')       # Replace with actual output name
-        bbox_preds = output_dict.get('bbox_preds')  # Replace with actual output name
-        kps_preds = output_dict.get('kps_preds') if self.use_kps else None
+        # Assign outputs based on their names
+        scores_stride8 = output_dict.get('448')    # Shape: [-1, 1]
+        bbox_stride8 = output_dict.get('451')      # Shape: [-1, 4]
+        kps_stride8 = output_dict.get('454')       # Shape: [-1, 10]
 
-        # Verify shapes
-        if scores is None or bbox_preds is None:
-            raise ValueError("Missing required outputs from Triton face detection model.")
+        scores_stride16 = output_dict.get('471')   # Shape: [-1, 1]
+        bbox_stride16 = output_dict.get('474')     # Shape: [-1, 4]
+        kps_stride16 = output_dict.get('477')      # Shape: [-1, 10]
 
-        if bbox_preds.shape[-1] != 4:
-            raise ValueError(f"Expected bbox_preds to have 4 columns, got {bbox_preds.shape[-1]}")
+        scores_stride32 = output_dict.get('494')   # Shape: [-1, 1]
+        bbox_stride32 = output_dict.get('497')     # Shape: [-1, 4]
+        kps_stride32 = output_dict.get('500')      # Shape: [-1, 10]
 
-        # Reshape if necessary
-        scores = scores.reshape(-1)  # Flatten batch and anchors
-        bbox_preds = bbox_preds.reshape(-1, 4)  # Flatten batch and anchors
+        # Verify that all required outputs are present
+        if self.use_kps:
+            required_outputs = [scores_stride8, bbox_stride8, kps_stride8,
+                                scores_stride16, bbox_stride16, kps_stride16,
+                                scores_stride32, bbox_stride32, kps_stride32]
+        else:
+            required_outputs = [scores_stride8, bbox_stride8,
+                                scores_stride16, bbox_stride16,
+                                scores_stride32, bbox_stride32]
 
-        # Generate anchor centers based on stride and feature map dimensions
-        anchor_centers = self.generate_anchor_centers(bbox_preds.shape[0])
+        if any(output is None for output in required_outputs):
+            raise ValueError("One or more required outputs are missing from Triton response.")
 
-        # Decode bounding boxes
-        bboxes = distance2bbox(anchor_centers, bbox_preds, max_shape=(img.shape[0], img.shape[1]))
+        # Process each stride
+        stride_outputs = [
+            (scores_stride8, bbox_stride8, kps_stride8),
+            (scores_stride16, bbox_stride16, kps_stride16),
+            (scores_stride32, bbox_stride32, kps_stride32)
+        ]
 
-        # Assuming scores correspond to the confidence of each bbox
+        for idx, stride in enumerate(self._feat_stride_fpn):
+            scores, bbox_preds, kps_preds = stride_outputs[idx]
+            
+            # Reshape outputs
+            scores = scores.reshape(-1)
+            bbox_preds = bbox_preds.reshape(-1, 4)
+
+            if self.use_kps:
+                kps_preds = kps_preds.reshape(-1, 10)
+            else:
+                kps_preds = None
+
+            # Generate anchor centers based on stride
+            anchor_centers = self.generate_anchor_centers(bbox_preds.shape[0], stride)
+
+            # Decode bounding boxes
+            bboxes = distance2bbox(anchor_centers, bbox_preds, max_shape=(img.shape[0], img.shape[1]))
+
+            # Append to lists
+            scores_list_final.append(scores)
+            bboxes_list.append(bboxes)
+
+            if self.use_kps and kps_preds is not None:
+                kpss = distance2kps(anchor_centers, kps_preds, max_shape=(img.shape[0], img.shape[1]))
+                kpss_list.append(kpss)
+
+        # Combine all detections
+        scores = np.concatenate(scores_list_final)
+        bboxes = np.concatenate(bboxes_list)
+        kpss = np.concatenate(kpss_list) if self.use_kps else None
+
+        # Assemble detections
         dets = np.hstack((bboxes, scores[:, np.newaxis])).astype(np.float32)
 
         # Apply Non-Maximum Suppression (NMS)
         keep = self.nms(dets)
         det = dets[keep, :]
 
-        if self.use_kps and kps_preds is not None:
-            kps_preds = kps_preds.reshape(-1, kps_preds.shape[-1] // 2, 2)
-            kpss = distance2kps(anchor_centers, kps_preds, max_shape=(img.shape[0], img.shape[1]))
+        if self.use_kps and kpss is not None:
             kpss = kpss[keep, :, :]
         else:
             kpss = None
 
         return det, kpss
 
-    def generate_anchor_centers(self, num_anchors):
+    def generate_anchor_centers(self, num_anchors, stride):
         """
         Generates anchor centers based on the feature map strides and grid sizes.
 
         Args:
             num_anchors (int): Total number of anchor centers across all feature maps.
+            stride (int): Stride corresponding to the current feature map.
 
         Returns:
             np.ndarray: Array of anchor centers with shape (num_anchors, 2).
         """
-        anchor_centers = []
-        for stride in self._feat_stride_fpn:
-            feature_map_size = self.input_size[0] // stride
-            grid_x, grid_y = np.meshgrid(np.arange(feature_map_size), np.arange(feature_map_size))
-            centers = np.stack([grid_x, grid_y], axis=-1).reshape(-1, 2).astype(np.float32)
-            centers *= stride
-            anchor_centers.append(centers)
-        anchor_centers = np.vstack(anchor_centers)
-        return anchor_centers
+        feature_map_size = self.input_size[0] // stride
+        grid_x, grid_y = np.meshgrid(np.arange(feature_map_size), np.arange(feature_map_size))
+        centers = np.stack([grid_x, grid_y], axis=-1).reshape(-1, 2).astype(np.float32)
+        centers *= stride
+        return centers
 
     def estimate_face_pose(self, img, face):
         """
@@ -330,21 +366,15 @@ class FaceAnalysisModel:
         preds_dict = self.face_pose.predict(input_dict)
 
         # Extract output based on output names
-        # Replace 'pose_output_name' with your actual Triton output name
-        pred = None
-        for out_spec in self.face_pose.output_spec():
-            output_name = out_spec[0]
-            if output_name in preds_dict:
-                pred = preds_dict[output_name]
-                if self.debug:
-                    print(f"Pose Output '{output_name}' retrieved with shape {pred.shape}")
-            else:
-                raise ValueError(f"Expected output '{output_name}' not found in Triton response.")
-            break  # Only take the first output
-
+        # Replace 'fc1' with your actual Triton output name
+        pred = preds_dict.get('fc1')
         if pred is None:
-            raise ValueError("No output received from the pose estimation model.")
+            raise ValueError("Expected output 'fc1' not found in Triton response.")
 
+        if self.debug:
+            print(f"Pose Output 'fc1' retrieved with shape {pred.shape}")
+
+        # Process the pose output
         pred = pred.reshape((-1, 2))
         if self.lmk_num < pred.shape[0]:
             pred = pred[self.lmk_num * -1:, :]
