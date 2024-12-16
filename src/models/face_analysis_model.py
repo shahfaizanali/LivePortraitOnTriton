@@ -7,7 +7,7 @@
 import numpy as np
 from insightface.app.common import Face
 import cv2
-from .new_predictor import get_predictor
+from .predictor import get_predictor
 from ..utils import face_align
 
 def sort_by_direction(faces, direction: str = 'large-small', face_center=None):
@@ -64,15 +64,16 @@ class FaceAnalysisModel:
         Initializes the FaceAnalysisModel with Triton predictors for face detection and face pose estimation.
         
         Expected keyword arguments:
-            - model_path: List of model identifiers or names for Triton.
+            - model_name: List of model identifiers or names for Triton.
             - triton_url: URL of the Triton Inference Server (default: 'localhost:8000').
             - debug: Boolean flag to enable debug mode (default: False).
         """
-        self.model_names = kwargs.get("model_name", ["retinaface_det_static", "face_2dpose_106_static"])
+        self.model_names = kwargs.get("model_name", [])
         self.triton_url = kwargs.get("triton_url", "localhost:8000")
         self.debug = kwargs.get("debug", False)
         
         assert self.model_names, "At least one model name must be provided."
+        assert len(self.model_names) >= 2, "Please provide both face detection and face pose model names."
         
         # Initialize Triton predictors
         self.face_det = get_predictor(model_name=self.model_names[0], url=self.triton_url, protocol="http", debug=self.debug)
@@ -177,18 +178,35 @@ class FaceAnalysisModel:
         det_img_batch = np.expand_dims(det_img_transposed, axis=0).astype(np.float32)
 
         # Prepare input dictionary for Triton
+        input_spec = self.face_det.input_spec()
+        if len(input_spec) != 1:
+            raise ValueError("Face detection model expects exactly one input tensor.")
+        input_name, _, _ = input_spec[0]
         input_dict = {
-            self.face_det.input_spec()[0][0]: det_img_batch  # Assuming single input
+            input_name: det_img_batch  # Assuming single input
         }
 
         # Perform inference
         preds_dict = self.face_det.predict(input_dict)
 
-        # Extract outputs
+        # Extract outputs based on output names
+        # Replace 'output_name1', 'output_name2', etc., with your actual Triton output names
         outs = []
-        for key in self.face_det.output_spec():
-            outs.append(preds_dict[key[0]])  # key[0] is the output name
-        o448, o471, o494, o451, o474, o497, o454, o477, o500 = outs[:9]  # Adjust based on actual output names
+        for out_spec in self.face_det.output_spec():
+            output_name = out_spec[0]
+            if output_name in preds_dict:
+                outs.append(preds_dict[output_name])
+                if self.debug:
+                    print(f"Output '{output_name}' retrieved with shape {preds_dict[output_name].shape}")
+            else:
+                raise ValueError(f"Expected output '{output_name}' not found in Triton response.")
+        
+        # Ensure you have the correct number of outputs
+        expected_num_outputs = 9  # Adjust based on your model's actual outputs
+        if len(outs) < expected_num_outputs:
+            raise ValueError(f"Insufficient outputs received from Triton for face detection. Expected {expected_num_outputs}, got {len(outs)}.")
+
+        o448, o471, o494, o451, o474, o497, o454, o477, o500 = outs[:expected_num_outputs]  # Adjust based on actual output names
 
         faces_det = [o448, o471, o494, o451, o474, o497, o454, o477, o500]
         input_height = det_img.shape[1]
@@ -270,18 +288,30 @@ class FaceAnalysisModel:
         aimg_batch = np.expand_dims(aimg_transposed, axis=0).astype(np.float32)
 
         # Prepare input dictionary for Triton
+        pose_input_spec = self.face_pose.input_spec()
+        if len(pose_input_spec) != 1:
+            raise ValueError("Face pose estimation model expects exactly one input tensor.")
+        pose_input_name, _, _ = pose_input_spec[0]
         input_dict = {
-            self.face_pose.input_spec()[0][0]: aimg_batch  # Assuming single input
+            pose_input_name: aimg_batch  # Assuming single input
         }
 
         # Perform inference
         preds_dict = self.face_pose.predict(input_dict)
 
-        # Extract output
+        # Extract output based on output names
+        # Replace 'pose_output_name' with your actual Triton output name
         pred = None
-        for out in self.face_pose.output_spec():
-            pred = preds_dict[out[0]]  # Assuming single output
+        for out_spec in self.face_pose.output_spec():
+            output_name = out_spec[0]
+            if output_name in preds_dict:
+                pred = preds_dict[output_name]
+                if self.debug:
+                    print(f"Pose Output '{output_name}' retrieved with shape {pred.shape}")
+            else:
+                raise ValueError(f"Expected output '{output_name}' not found in Triton response.")
             break  # Only take the first output
+
         if pred is None:
             raise ValueError("No output received from the pose estimation model.")
 
@@ -326,5 +356,8 @@ class FaceAnalysisModel:
         return outs
 
     def __del__(self):
-        del self.face_det
-        del self.face_pose
+        # Safely attempt to delete predictors if they exist
+        if hasattr(self, 'face_det'):
+            del self.face_det
+        if hasattr(self, 'face_pose'):
+            del self.face_pose

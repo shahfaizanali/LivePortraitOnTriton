@@ -17,7 +17,7 @@ numpy_to_triton_dtype = {
     np.float16: "FP16",
     np.float32: "FP32",
     np.float64: "FP64",
-    np.bool_: "BOOL",
+    np.bool_: "BOOL",  # Updated here
 }
 
 class TritonPredictor:
@@ -56,8 +56,9 @@ class TritonPredictor:
         self.model_metadata = self.client.get_model_metadata(self.model_name, self.model_version)
         self.model_config = self.client.get_model_config(self.model_name, self.model_version)
 
-        self.inputs = self.model_metadata.inputs
-        self.outputs = self.model_metadata.outputs
+        # Access 'inputs' and 'outputs' as dictionary keys
+        self.inputs = self.model_metadata.get('inputs', [])
+        self.outputs = self.model_metadata.get('outputs', [])
 
         if self.debug:
             print(f"Triton Model Metadata: {self.model_metadata}")
@@ -70,9 +71,9 @@ class TritonPredictor:
         """
         specs = []
         for inp in self.inputs:
-            specs.append((inp.name, inp.shape, inp.datatype))
+            specs.append((inp['name'], inp['shape'], inp['datatype']))
             if self.debug:
-                print(f"Triton input -> {inp.name} -> {inp.shape} -> {inp.datatype}")
+                print(f"Triton input -> {inp['name']} -> {inp['shape']} -> {inp['datatype']}")
         return specs
 
     def output_spec(self):
@@ -82,9 +83,9 @@ class TritonPredictor:
         """
         specs = []
         for out in self.outputs:
-            specs.append((out.name, out.shape, out.datatype))
+            specs.append((out['name'], out['shape'], out['datatype']))
             if self.debug:
-                print(f"Triton output -> {out.name} -> {out.shape} -> {out.datatype}")
+                print(f"Triton output -> {out['name']} -> {out['shape']} -> {out['datatype']}")
         return specs
 
     def predict(self, feed_dict):
@@ -95,7 +96,7 @@ class TritonPredictor:
         """
         inputs = []
         for name, data in feed_dict.items():
-            if name not in [inp.name for inp in self.inputs]:
+            if name not in [inp['name'] for inp in self.inputs]:
                 raise ValueError(f"Input name {name} not found in model inputs")
 
             # Determine the Triton datatype
@@ -103,14 +104,15 @@ class TritonPredictor:
             if dtype is None:
                 raise ValueError(f"Unsupported data type: {data.dtype}")
 
-            inputs.append(httpclient.InferInput(name, data.shape, dtype))
-            inputs[-1].set_data_from_numpy(data, binary_data=True)
+            infer_input = httpclient.InferInput(name, data.shape, dtype)
+            infer_input.set_data_from_numpy(data, binary_data=True)
+            inputs.append(infer_input)
 
             if self.debug:
                 print(f"Prepared input {name} with shape {data.shape} and dtype {dtype}")
 
         # Prepare outputs
-        output_names = [out.name for out in self.outputs]
+        output_names = [out['name'] for out in self.outputs]
         outputs = [httpclient.InferRequestedOutput(name, binary_data=True) for name in output_names]
 
         # Perform inference
@@ -124,18 +126,18 @@ class TritonPredictor:
         # Extract output data
         output_data = {}
         for out in self.outputs:
-            output_data[out.name] = results.as_numpy(out.name)
+            output_data[out['name']] = results.as_numpy(out['name'])
             if self.debug:
-                print(f"Received output {out.name} with shape {output_data[out.name].shape} and dtype {output_data[out.name].dtype}")
+                print(f"Received output {out['name']} with shape {output_data[out['name']].shape} and dtype {output_data[out['name']].dtype}")
 
         return output_data
 
     def __del__(self):
-        del self.client
+        if hasattr(self, 'client'):
+            del self.client
 
 def get_predictor(**kwargs):
     """
-    Factory method to get the appropriate predictor.
-    Since ONNX is no longer needed and TensorRT is replaced by Triton, we return TritonPredictor.
+    Factory method to get the Triton predictor.
     """
     return TritonPredictor(**kwargs)
