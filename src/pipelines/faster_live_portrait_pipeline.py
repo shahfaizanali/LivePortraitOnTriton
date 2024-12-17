@@ -193,6 +193,7 @@ class FasterLivePortraitPipeline:
                         src_infos[i].append(None)
                     M = torch.from_numpy(crop_info['M_c2o']).to(self.device)
                     src_infos[i].append(M)
+                print("here")    
                 self.src_infos.append(src_infos[:])
               
             print(f"finish process source:{source_path} >>>>>>>>")
