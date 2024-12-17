@@ -62,9 +62,7 @@ class FaceAnalysisModel:
         url = kwargs.get("url", "localhost:8001")
 
         self.face_det = get_predictor(model_name=face_det_model_name, url=url)
-        input_specs = self.face_det.input_spec()
-        print("inputs")
-        print(input_specs)
+        self.face_det.input_spec()
         self.face_det.output_spec()
 
         self.face_pose = get_predictor(model_name=face_pose_model_name, url=url)
@@ -164,11 +162,7 @@ class FaceAnalysisModel:
 
         inp_name = self.face_det.inputs[0]["name"]
         feed_dict = {inp_name: det_img}
-        print("Final input shape before Triton:", det_img.shape)
         preds_dict = self.face_det.predict(feed_dict)
-        print("Predictions keys for dete:", preds_dict.keys())
-        for k in ["448", "471", "494", "451", "474", "497", "454", "477", "500"]:
-          print(k, preds_dict[k].shape, preds_dict[k][0:5])  # Just a snippet
         # Extract outputs
         # Adjust the output keys if your model uses different output names
         faces_det = [preds_dict[k] for k in self.output_keys]
@@ -247,7 +241,7 @@ class FaceAnalysisModel:
         feed_dict = {inp_name: aimg}
         preds_dict = self.face_pose.predict(feed_dict)
         pred = preds_dict[self.face_pose.outputs[0]["name"]]
-        print("Predictions keys for pose:", preds_dict.keys())
+        pred = pred.copy()
         
 
         pred = pred.reshape((-1, 2))
