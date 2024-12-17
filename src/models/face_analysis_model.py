@@ -1,19 +1,9 @@
 # -*- coding: utf-8 -*-
-# @Author  : wenshao
-# @Email   : wenshaoguo0611@gmail.com
-# @Project : FasterLivePortrait
-# @FileName: face_analysis_model.py
-import pdb
-
 import numpy as np
-from insightface.app.common import Face
 import cv2
+from insightface.app.common import Face
 from .new_predictor import get_predictor
 from ..utils import face_align
-import torch
-from torch.cuda import nvtx
-from .predictor import numpy_to_torch_dtype_dict
-
 
 def sort_by_direction(faces, direction: str = 'large-small', face_center=None):
     if len(faces) <= 0:
@@ -39,48 +29,26 @@ def sort_by_direction(faces, direction: str = 'large-small', face_center=None):
 
 
 def distance2bbox(points, distance, max_shape=None):
-    """Decode distance prediction to bounding box.
-
-    Args:
-        points (Tensor): Shape (n, 2), [x, y].
-        distance (Tensor): Distance from the given point to 4
-            boundaries (left, top, right, bottom).
-        max_shape (tuple): Shape of the image.
-
-    Returns:
-        Tensor: Decoded bboxes.
-    """
     x1 = points[:, 0] - distance[:, 0]
     y1 = points[:, 1] - distance[:, 1]
     x2 = points[:, 0] + distance[:, 2]
     y2 = points[:, 1] + distance[:, 3]
     if max_shape is not None:
-        x1 = x1.clamp(min=0, max=max_shape[1])
-        y1 = y1.clamp(min=0, max=max_shape[0])
-        x2 = x2.clamp(min=0, max=max_shape[1])
-        y2 = y2.clamp(min=0, max=max_shape[0])
+        x1 = np.clip(x1, 0, max_shape[1])
+        y1 = np.clip(y1, 0, max_shape[0])
+        x2 = np.clip(x2, 0, max_shape[1])
+        y2 = np.clip(y2, 0, max_shape[0])
     return np.stack([x1, y1, x2, y2], axis=-1)
 
 
 def distance2kps(points, distance, max_shape=None):
-    """Decode distance prediction to bounding box.
-
-    Args:
-        points (Tensor): Shape (n, 2), [x, y].
-        distance (Tensor): Distance from the given point to 4
-            boundaries (left, top, right, bottom).
-        max_shape (tuple): Shape of the image.
-
-    Returns:
-        Tensor: Decoded bboxes.
-    """
     preds = []
     for i in range(0, distance.shape[1], 2):
         px = points[:, i % 2] + distance[:, i]
         py = points[:, i % 2 + 1] + distance[:, i + 1]
         if max_shape is not None:
-            px = px.clamp(min=0, max=max_shape[1])
-            py = py.clamp(min=0, max=max_shape[0])
+            px = np.clip(px, 0, max_shape[1])
+            py = np.clip(py, 0, max_shape[0])
         preds.append(px)
         preds.append(py)
     return np.stack(preds, axis=-1)
@@ -88,24 +56,22 @@ def distance2kps(points, distance, max_shape=None):
 
 class FaceAnalysisModel:
     def __init__(self, **kwargs):
-        self.model_paths = kwargs.get("model_path", [])
-        self.predict_type = kwargs.get("predict_type", "trt")
-        self.device = torch.cuda.current_device()
-        self.cudaStream = torch.cuda.current_stream().cuda_stream
+        # Provide model names and Triton URL here:
+        face_det_model_name = kwargs.get("face_det_model_name", "retinaface_det_static")
+        face_pose_model_name = kwargs.get("face_pose_model_name", "face_2dpose_106_static")
+        url = kwargs.get("url", "localhost:8001")
 
-        assert self.model_paths
-        self.face_det = get_predictor(predict_type=self.predict_type, model_path=self.model_paths[0])
+        self.face_det = get_predictor(model_name=face_det_model_name, url=url)
         self.face_det.input_spec()
         self.face_det.output_spec()
-        self.face_pose = get_predictor(predict_type=self.predict_type, model_path=self.model_paths[1])
+
+        self.face_pose = get_predictor(model_name=face_pose_model_name, url=url)
         self.face_pose.input_spec()
         self.face_pose.output_spec()
 
-        # face det
+        # Set up model-related configs
         self.input_mean = 127.5
         self.input_std = 128.0
-        # print(self.output_names)
-        # assert len(outputs)==10 or len(outputs)==15
         self.use_kps = False
         self._anchor_ratio = 1.0
         self._num_anchors = 1
@@ -113,20 +79,24 @@ class FaceAnalysisModel:
         self.nms_thresh = 0.4
         self.det_thresh = 0.5
         self.input_size = (512, 512)
-        if len(self.face_det.outputs) == 6:
+
+        # Determine fmc and use_kps based on number of outputs
+        # Adjust output names based on your model
+        num_outputs = len(self.face_det.outputs)
+        if num_outputs == 6:
             self.fmc = 3
             self._feat_stride_fpn = [8, 16, 32]
             self._num_anchors = 2
-        elif len(self.face_det.outputs) == 9:
+        elif num_outputs == 9:
             self.fmc = 3
             self._feat_stride_fpn = [8, 16, 32]
             self._num_anchors = 2
             self.use_kps = True
-        elif len(self.face_det.outputs) == 10:
+        elif num_outputs == 10:
             self.fmc = 5
             self._feat_stride_fpn = [8, 16, 32, 64, 128]
             self._num_anchors = 1
-        elif len(self.face_det.outputs) == 15:
+        elif num_outputs == 15:
             self.fmc = 5
             self._feat_stride_fpn = [8, 16, 32, 64, 128]
             self._num_anchors = 1
@@ -134,6 +104,10 @@ class FaceAnalysisModel:
 
         self.lmk_dim = 2
         self.lmk_num = 212 // self.lmk_dim
+
+        # Update output names based on your model (these must match Triton model outputs)
+        # Example here uses the same names as previously mentioned
+        self.output_keys = ["448", "471", "494", "451", "474", "497", "454", "477", "500"]
 
     def nms(self, dets):
         thresh = self.nms_thresh
@@ -165,53 +139,46 @@ class FaceAnalysisModel:
 
         return keep
 
-    def detect_face(self, *data):
-        img = data[0]  # BGR mode
+    def detect_face(self, img):
+        # Preprocess
         im_ratio = float(img.shape[0]) / img.shape[1]
-        input_size = self.input_size
-        model_ratio = float(input_size[1]) / input_size[0]
+        model_ratio = float(self.input_size[1]) / self.input_size[0]
         if im_ratio > model_ratio:
-            new_height = input_size[1]
+            new_height = self.input_size[1]
             new_width = int(new_height / im_ratio)
         else:
-            new_width = input_size[0]
+            new_width = self.input_size[0]
             new_height = int(new_width * im_ratio)
         det_scale = float(new_height) / img.shape[0]
-        resized_img = cv2.resize(img, (new_width, new_height))
-        det_img = np.zeros((input_size[1], input_size[0], 3), dtype=np.uint8)
-        det_img[:new_height, :new_width, :] = resized_img
 
-        scores_list = []
-        bboxes_list = []
-        kpss_list = []
-        input_size = tuple(img.shape[0:2][::-1])
+        resized_img = cv2.resize(img, (new_width, new_height))
+        det_img = np.zeros((self.input_size[1], self.input_size[0], 3), dtype=np.uint8)
+        det_img[:new_height, :new_width, :] = resized_img
 
         det_img = cv2.cvtColor(det_img, cv2.COLOR_BGR2RGB)
         det_img = np.transpose(det_img, (2, 0, 1))
         det_img = (det_img - self.input_mean) / self.input_std
-        if self.predict_type == "trt":
-            nvtx.range_push("forward")
-            feed_dict = {}
-            inp = self.face_det.inputs[0]
-            det_img_torch = torch.from_numpy(det_img[None]).to(device=self.device,
-                                                               dtype=numpy_to_torch_dtype_dict[inp['dtype']])
-            feed_dict[inp['name']] = det_img_torch
-            preds_dict = self.face_det.predict(feed_dict, self.cudaStream)
-            outs = []
-            for key in ["448", "471", "494", "451", "474", "497", "454", "477", "500"]:
-                outs.append(preds_dict[key].cpu().numpy())
-            o448, o471, o494, o451, o474, o497, o454, o477, o500 = outs
-            nvtx.range_pop()
-        else:
-            o448, o471, o494, o451, o474, o497, o454, o477, o500 = self.face_det.predict(det_img[None])
-        faces_det = [o448, o471, o494, o451, o474, o497, o454, o477, o500]
-        input_height = det_img.shape[1]
-        input_width = det_img.shape[2]
+        det_img = det_img[None].astype(np.float32)
+
+        inp_name = self.face_det.inputs[0]["name"]
+        feed_dict = {inp_name: det_img}
+        preds_dict = self.face_det.predict(feed_dict)
+
+        # Extract outputs
+        # Adjust the output keys if your model uses different output names
+        faces_det = [preds_dict[k] for k in self.output_keys]
+
+        input_height = det_img.shape[2]
+        input_width = det_img.shape[3]
         fmc = self.fmc
+
+        scores_list = []
+        bboxes_list = []
+        kpss_list = []
+
         for idx, stride in enumerate(self._feat_stride_fpn):
             scores = faces_det[idx]
-            bbox_preds = faces_det[idx + fmc]
-            bbox_preds = bbox_preds * stride
+            bbox_preds = faces_det[idx + fmc] * stride
             if self.use_kps:
                 kps_preds = faces_det[idx + fmc * 2] * stride
             height = input_height // stride
@@ -221,9 +188,7 @@ class FaceAnalysisModel:
             if key in self.center_cache:
                 anchor_centers = self.center_cache[key]
             else:
-                # solution-3:
                 anchor_centers = np.stack(np.mgrid[:height, :width][::-1], axis=-1).astype(np.float32)
-                # print(anchor_centers.shape)
                 anchor_centers = (anchor_centers * stride).reshape((-1, 2))
                 if self._num_anchors > 1:
                     anchor_centers = np.stack([anchor_centers] * self._num_anchors, axis=1).reshape((-1, 2))
@@ -238,10 +203,10 @@ class FaceAnalysisModel:
             bboxes_list.append(pos_bboxes)
             if self.use_kps:
                 kpss = distance2kps(anchor_centers, kps_preds)
-                # kpss = kps_preds
                 kpss = kpss.reshape((kpss.shape[0], -1, 2))
                 pos_kpss = kpss[pos_inds]
                 kpss_list.append(pos_kpss)
+
         scores = np.vstack(scores_list)
         scores_ravel = scores.ravel()
         order = scores_ravel.argsort()[::-1]
@@ -259,13 +224,7 @@ class FaceAnalysisModel:
             kpss = None
         return det, kpss
 
-    def estimate_face_pose(self, *data):
-        """
-        检测脸部关键点
-        :param data:
-        :return:
-        """
-        img, face = data
+    def estimate_face_pose(self, img, face):
         bbox = face.bbox
         w, h = (bbox[2] - bbox[0]), (bbox[3] - bbox[1])
         center = (bbox[2] + bbox[0]) / 2, (bbox[3] + bbox[1]) / 2
@@ -277,45 +236,37 @@ class FaceAnalysisModel:
 
         aimg = cv2.cvtColor(aimg, cv2.COLOR_BGR2RGB)
         aimg = np.transpose(aimg, (2, 0, 1))
-        if self.predict_type == "trt":
-            nvtx.range_push("forward")
-            feed_dict = {}
-            inp = self.face_pose.inputs[0]
-            det_img_torch = torch.from_numpy(aimg[None]).to(device=self.device,
-                                                            dtype=numpy_to_torch_dtype_dict[inp['dtype']])
-            feed_dict[inp['name']] = det_img_torch
-            preds_dict = self.face_pose.predict(feed_dict, self.cudaStream)
-            outs = []
-            for i, out in enumerate(self.face_pose.outputs):
-                outs.append(preds_dict[out["name"]].cpu().numpy())
-            pred = outs[0]
-            nvtx.range_pop()
-        else:
-            pred = self.face_pose.predict(aimg[None])[0]
+        aimg = aimg[None].astype(np.float32)
+
+        inp_name = self.face_pose.inputs[0]["name"]
+        feed_dict = {inp_name: aimg}
+        preds_dict = self.face_pose.predict(feed_dict)
+        pred = preds_dict[self.face_pose.outputs[0]["name"]]
+
         pred = pred.reshape((-1, 2))
         if self.lmk_num < pred.shape[0]:
             pred = pred[self.lmk_num * -1:, :]
         pred[:, 0:2] += 1
         pred[:, 0:2] *= (input_size[0] // 2)
-        if pred.shape[1] == 3:
-            pred[:, 2] *= (input_size[0] // 2)
 
         IM = cv2.invertAffineTransform(M)
         pred = face_align.trans_points(pred, IM)
         face["landmark"] = pred
         return pred
 
-    def predict(self, *data, **kwargs):
-        bboxes, kpss = self.detect_face(*data)
+    def predict(self, img):
+        bboxes, kpss = self.detect_face(img)
         if bboxes.shape[0] == 0:
             return []
         ret = []
         for i in range(bboxes.shape[0]):
             bbox = bboxes[i, 0:4]
             det_score = bboxes[i, 4]
-            kps = kpss[i]
+            kps = None
+            if self.use_kps and kpss is not None:
+                kps = kpss[i]
             face = Face(bbox=bbox, kps=kps, det_score=det_score)
-            self.estimate_face_pose(data[0], face)
+            self.estimate_face_pose(img, face)
             ret.append(face)
         ret = sort_by_direction(ret, 'large-small', None)
         outs = [x.landmark for x in ret]
