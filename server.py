@@ -70,6 +70,9 @@ infer_cfg = OmegaConf.load(default_cfg)
 infer_cfg.infer_params.flag_pasteback = default_paste_back
 pipe = FasterLivePortraitPipeline(cfg=infer_cfg, is_animal=False)
 ret = pipe.prepare_source(default_src_image, realtime=True)
+logger.info(ret)
+logger.info(len(pipe.src_imgs))
+logger.info(len(pipe.src_infos))
 if not ret or len(pipe.src_imgs) == 0 or len(pipe.src_infos) == 0:
     logger.info(f"No face detected in {default_src_image}! Please use a different source image.")
     # Handle this error by exiting or using a fallback
