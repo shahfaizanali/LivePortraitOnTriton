@@ -106,7 +106,7 @@ class FasterLivePortraitPipeline:
             self.src_imgs = []
             self.src_infos = []
             self.source_path = source_path
-
+            print("wtf")
             for ii, img_bgr in tqdm(enumerate(src_imgs_bgr), total=len(src_imgs_bgr)):
                 img_bgr = resize_to_limit(img_bgr, self.cfg.infer_params.source_max_dim,
                                           self.cfg.infer_params.source_division)
