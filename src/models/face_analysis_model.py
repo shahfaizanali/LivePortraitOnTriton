@@ -96,7 +96,9 @@ class FaceAnalysisModel:
         assert self.model_paths
         self.face_det = get_predictor(predict_type=self.predict_type, model_path=self.model_paths[0])
         self.face_det.input_spec()
-        self.face_det.output_spec()
+        output_specs = self.face_det.output_spec()
+        print("outputs")
+        print(output_specs)
         self.face_pose = get_predictor(predict_type=self.predict_type, model_path=self.model_paths[1])
         self.face_pose.input_spec()
         self.face_pose.output_spec()
@@ -197,6 +199,9 @@ class FaceAnalysisModel:
                                                                dtype=numpy_to_torch_dtype_dict[inp['dtype']])
             feed_dict[inp['name']] = det_img_torch
             preds_dict = self.face_det.predict(feed_dict, self.cudaStream)
+            print("Predictions keys for dete:", preds_dict.keys())
+            for k in ["448", "471", "494", "451", "474", "497", "454", "477", "500"]:
+              print(k, preds_dict[k].shape, preds_dict[k][0:5])
             outs = []
             for key in ["448", "471", "494", "451", "474", "497", "454", "477", "500"]:
                 outs.append(preds_dict[key].cpu().numpy())
