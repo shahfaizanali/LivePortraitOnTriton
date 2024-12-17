@@ -106,12 +106,12 @@ class FasterLivePortraitPipeline:
             self.src_imgs = []
             self.src_infos = []
             self.source_path = source_path
-            print("asdasd")  
+            
             for ii, img_bgr in tqdm(enumerate(src_imgs_bgr), total=len(src_imgs_bgr)):
                 img_bgr = resize_to_limit(img_bgr, self.cfg.infer_params.source_max_dim,
                                           self.cfg.infer_params.source_division)
                 img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
-
+                print("asdasd")  
                 src_faces = self.model_dict["face_analysis"].predict(img_bgr)
                 if len(src_faces) == 0:
                     print("No face detected in the this image.")
