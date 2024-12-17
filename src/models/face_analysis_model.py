@@ -166,7 +166,6 @@ class FaceAnalysisModel:
         return keep
 
     def detect_face(self, *data):
-        print("coming here")
         img = data[0]  # BGR mode
         im_ratio = float(img.shape[0]) / img.shape[1]
         input_size = self.input_size
@@ -197,12 +196,8 @@ class FaceAnalysisModel:
             det_img_torch = torch.from_numpy(det_img[None]).to(device=self.device,
                                                                dtype=numpy_to_torch_dtype_dict[inp['dtype']])
             feed_dict[inp['name']] = det_img_torch
-            print("Final input shape before Triton:", det_img.shape)
 
             preds_dict = self.face_det.predict(feed_dict, self.cudaStream)
-            print("Predictions keys for dete:", preds_dict.keys())
-            for k in ["448", "471", "494", "451", "474", "497", "454", "477", "500"]:
-              print(k, preds_dict[k].shape, preds_dict[k][0:5])
             outs = []
             for key in ["448", "471", "494", "451", "474", "497", "454", "477", "500"]:
                 outs.append(preds_dict[key].cpu().numpy())
@@ -312,7 +307,6 @@ class FaceAnalysisModel:
         return pred
 
     def predict(self, *data, **kwargs):
-        print("coming here")
         bboxes, kpss = self.detect_face(*data)
         if bboxes.shape[0] == 0:
             return []
