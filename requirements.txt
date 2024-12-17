@@ -15,4 +15,4 @@ aiohttp
 opencv-python-headless
 onnxruntime-gpu
 lapx
-tritonclient[http]
+tritonclient[all]
