@@ -312,6 +312,7 @@ class FaceAnalysisModel:
         return pred
 
     def predict(self, *data, **kwargs):
+        print("coming here predit")
         bboxes, kpss = self.detect_face(*data)
         if bboxes.shape[0] == 0:
             return []
