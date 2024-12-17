@@ -199,6 +199,8 @@ class FaceAnalysisModel:
             det_img_torch = torch.from_numpy(det_img[None]).to(device=self.device,
                                                                dtype=numpy_to_torch_dtype_dict[inp['dtype']])
             feed_dict[inp['name']] = det_img_torch
+            print("Final input shape before Triton:", det_img.shape)
+
             preds_dict = self.face_det.predict(feed_dict, self.cudaStream)
             print("Predictions keys for dete:", preds_dict.keys())
             for k in ["448", "471", "494", "451", "474", "497", "454", "477", "500"]:

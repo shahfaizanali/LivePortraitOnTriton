@@ -164,6 +164,7 @@ class FaceAnalysisModel:
 
         inp_name = self.face_det.inputs[0]["name"]
         feed_dict = {inp_name: det_img}
+        print("Final input shape before Triton:", det_img.shape)
         preds_dict = self.face_det.predict(feed_dict)
         print("Predictions keys for dete:", preds_dict.keys())
         for k in ["448", "471", "494", "451", "474", "497", "454", "477", "500"]:
