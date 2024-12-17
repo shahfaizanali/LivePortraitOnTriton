@@ -95,10 +95,10 @@ class FaceAnalysisModel:
 
         assert self.model_paths
         self.face_det = get_predictor(predict_type=self.predict_type, model_path=self.model_paths[0])
-        self.face_det.input_spec()
+        input_specs = self.face_det.input_spec()
         output_specs = self.face_det.output_spec()
-        print("outputs")
-        print(output_specs)
+        print("inputs")
+        print(input_specs)
         self.face_pose = get_predictor(predict_type=self.predict_type, model_path=self.model_paths[1])
         self.face_pose.input_spec()
         self.face_pose.output_spec()
@@ -312,7 +312,7 @@ class FaceAnalysisModel:
         return pred
 
     def predict(self, *data, **kwargs):
-        print("coming here predit")
+        print("coming here")
         bboxes, kpss = self.detect_face(*data)
         if bboxes.shape[0] == 0:
             return []
