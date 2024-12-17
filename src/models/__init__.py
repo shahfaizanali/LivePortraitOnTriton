@@ -8,6 +8,6 @@ from .warping_spade_model import WarpingSpadeModel
 from .motion_extractor_model import MotionExtractorModel
 from .appearance_feature_extractor_model import AppearanceFeatureExtractorModel
 from .landmark_model import LandmarkModel
-from .face_analysis_model import FaceAnalysisModel
+from .new_face_analysis_model import FaceAnalysisModel
 from .stitching_model import StitchingModel
 from .mediapipe_face_model import MediaPipeFaceModel
