@@ -55,7 +55,7 @@ class LandmarkModel(BaseModel):
     def output_process(self, preds, crop_dct):
         # preds is a list of outputs; we assume preds[0] is the landmark output
         # adjust as per your model's specific output indexing if needed
-        lmk = preds[0].reshape(-1, 2) * self.dsize
+        lmk = preds[2].reshape(-1, 2) * self.dsize
         lmk = _transform_pts(lmk, M=crop_dct['M_c2o'])
         return lmk
 
