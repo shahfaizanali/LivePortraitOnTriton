@@ -53,7 +53,8 @@ class TensorRTPredictor:
         self.logger = trt.Logger(trt.Logger.ERROR)
         trt.init_libnvinfer_plugins(self.logger, "")
         engine_path = kwargs.get("model_path", None)
-        self.debug = kwargs.get("debug", False)
+        self.debug = kwargs.get("debug", True)
+        print(engine_path)
         assert engine_path, f"model:{engine_path} must exist!"
         with open(engine_path, "rb") as f, trt.Runtime(self.logger) as runtime:
             assert runtime
