@@ -70,8 +70,6 @@ infer_cfg = OmegaConf.load(default_cfg)
 infer_cfg.infer_params.flag_pasteback = default_paste_back
 pipe = FasterLivePortraitPipeline(cfg=infer_cfg, is_animal=False)
 ret = pipe.prepare_source(default_src_image, realtime=True)
-ret = pipe.prepare_source(default_src_image, realtime=True)
-ret = pipe.prepare_source(default_src_image, realtime=True)
 logger.info(ret)
 logger.info(len(pipe.src_imgs))
 logger.info(len(pipe.src_infos))
