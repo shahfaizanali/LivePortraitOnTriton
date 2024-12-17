@@ -62,7 +62,9 @@ class FaceAnalysisModel:
         url = kwargs.get("url", "localhost:8001")
 
         self.face_det = get_predictor(model_name=face_det_model_name, url=url)
-        self.face_det.input_spec()
+        input_specs = self.face_det.input_spec()
+        print("inputs")
+        print(input_specs)
         self.face_det.output_spec()
 
         self.face_pose = get_predictor(model_name=face_pose_model_name, url=url)
