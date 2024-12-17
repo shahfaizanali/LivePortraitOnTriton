@@ -8,15 +8,6 @@ class BaseModel:
 
     def __init__(self, **kwargs):
         self.kwargs = copy.deepcopy(kwargs)
-        self.predictor = get_predictor(**self.kwargs)
-
-        # Since we are using Triton, we don't need a device or CUDA stream locally.
-        # The inference is done on the Triton server side.
-        
-        # Obtain input and output specs for reference/debugging
-        if self.predictor is not None:
-            self.input_shapes = self.predictor.input_spec()
-            self.output_shapes = self.predictor.output_spec()
 
     def input_process(self, *data):
         """

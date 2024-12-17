@@ -5,6 +5,7 @@
 # @FileName: landmark_model.py
 
 from .new_base_model import BaseModel
+from .new_predictor import get_predictor
 import cv2
 import numpy as np
 from src.utils.crop import crop_image, _transform_pts
@@ -18,6 +19,10 @@ class LandmarkModel(BaseModel):
     def __init__(self, **kwargs):
         super(LandmarkModel, self).__init__(**kwargs)
         self.dsize = 224
+        self.predictor = get_predictor(model_name="landmark")
+        if self.predictor is not None:
+            self.input_shapes = self.predictor.input_spec()
+            self.output_shapes = self.predictor.output_spec()
         # Assume self.predictor is already a TritonPredictor instance
         # configured in the parent BaseModel or initialization code.
 
