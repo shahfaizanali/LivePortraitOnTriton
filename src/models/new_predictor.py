@@ -12,7 +12,7 @@ class TritonPredictor:
         self.url = url
         self.model_name = model_name
         self.model_version = model_version
-        self.debug = debug
+        self.debug = True
 
         # Initialize Triton gRPC client
         self.client = grpcclient.InferenceServerClient(url=self.url, verbose=self.debug)
@@ -33,6 +33,7 @@ class TritonPredictor:
         self.outputs = []
         for out in self.model_metadata.outputs:
             self.outputs.append({"name": out.name, "dtype": out.datatype, "shape": out.shape})
+            print(out.name, out.datatype, out.shape)
 
     def input_spec(self):
         specs = []
