@@ -163,6 +163,7 @@ class FaceAnalysisModel:
         inp_name = self.face_det.inputs[0]["name"]
         feed_dict = {inp_name: det_img}
         preds_dict = self.face_det.predict(feed_dict)
+        print("Predictions keys for dete:", preds_dict.keys())
 
         # Extract outputs
         # Adjust the output keys if your model uses different output names
@@ -242,7 +243,7 @@ class FaceAnalysisModel:
         feed_dict = {inp_name: aimg}
         preds_dict = self.face_pose.predict(feed_dict)
         pred = preds_dict[self.face_pose.outputs[0]["name"]]
-
+        print("Predictions keys for pose:", preds_dict.keys())
         pred = pred.reshape((-1, 2))
         if self.lmk_num < pred.shape[0]:
             pred = pred[self.lmk_num * -1:, :]
