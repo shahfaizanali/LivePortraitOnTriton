@@ -106,6 +106,7 @@ class FasterLivePortraitPipeline:
             self.src_imgs = []
             self.src_infos = []
             self.source_path = source_path
+            print("asdasd")  
             for ii, img_bgr in tqdm(enumerate(src_imgs_bgr), total=len(src_imgs_bgr)):
                 img_bgr = resize_to_limit(img_bgr, self.cfg.infer_params.source_max_dim,
                                           self.cfg.infer_params.source_division)
@@ -193,7 +194,7 @@ class FasterLivePortraitPipeline:
                     M = torch.from_numpy(crop_info['M_c2o']).to(self.device)
                     src_infos[i].append(M)
                 self.src_infos.append(src_infos[:])
-            print("asdasd")    
+              
             print(f"finish process source:{source_path} >>>>>>>>")
             return len(self.src_infos) > 0
         except Exception as e:
