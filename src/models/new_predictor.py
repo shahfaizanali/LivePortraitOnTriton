@@ -3,10 +3,25 @@ import torch
 import tritonclient.http as httpclient
 from tritonclient.utils import InferenceServerException
 
+import numpy as np
+import torch
+import tritonclient.http as httpclient
+from tritonclient.utils import InferenceServerException
+
+# Mapping for Triton dtype strings to NumPy/Torch dtypes
+TRITON_DTYPE_MAP = {
+    'FP32': np.float32,
+    'FP16': np.float16,
+    'INT32': np.int32,
+    'INT64': np.int64,
+    'UINT8': np.uint8,
+    'BOOL': np.bool_
+}
+
 class TritonTensorRTPredictor:
     """
     Implements inference for TensorRT models served via Triton Inference Server
-    Compatible with existing predictor interface
+    Enhanced dtype handling
     """
 
     def __init__(self, **kwargs):
@@ -47,15 +62,22 @@ class TritonTensorRTPredictor:
     def _parse_io_specs(self):
         """
         Parse input and output specifications from model metadata
+        Converts Triton dtype to NumPy dtype
         """
         self.inputs = []
         self.outputs = []
         
         for input_meta in self.model_metadata['inputs']:
+            # Convert Triton dtype to NumPy dtype
+            try:
+                dtype = TRITON_DTYPE_MAP.get(input_meta['datatype'], input_meta['datatype'])
+            except Exception:
+                dtype = input_meta['datatype']
+            
             input_spec = {
                 'name': input_meta['name'],
                 'shape': input_meta['shape'],
-                'dtype': input_meta['datatype']
+                'dtype': dtype
             }
             self.inputs.append(input_spec)
             
@@ -63,10 +85,16 @@ class TritonTensorRTPredictor:
                 print(f"Triton input: {input_spec}")
         
         for output_meta in self.model_metadata['outputs']:
+            # Convert Triton dtype to NumPy dtype
+            try:
+                dtype = TRITON_DTYPE_MAP.get(output_meta['datatype'], output_meta['datatype'])
+            except Exception:
+                dtype = output_meta['datatype']
+            
             output_spec = {
                 'name': output_meta['name'],
                 'shape': output_meta['shape'],
-                'dtype': output_meta['datatype']
+                'dtype': dtype
             }
             self.outputs.append(output_spec)
             
@@ -114,11 +142,15 @@ class TritonTensorRTPredictor:
                     if torch.is_tensor(input_tensor):
                         input_tensor = input_tensor.cpu().numpy()
                     
+                    # Ensure correct dtype
+                    input_tensor = input_tensor.astype(input_spec['dtype'])
+                    
                     # Create Triton InferInput
                     triton_input = httpclient.InferInput(
                         input_name, 
                         input_tensor.shape, 
-                        input_spec['dtype']
+                        # Convert back to Triton dtype string for compatibility
+                        next(k for k, v in TRITON_DTYPE_MAP.items() if v == input_spec['dtype'])
                     )
                     triton_input.set_data_from_numpy(input_tensor)
                     inputs.append(triton_input)
@@ -131,11 +163,15 @@ class TritonTensorRTPredictor:
                     if torch.is_tensor(input_tensor):
                         input_tensor = input_tensor.cpu().numpy()
                     
+                    # Ensure correct dtype
+                    input_tensor = input_tensor.astype(input_spec['dtype'])
+                    
                     # Create Triton InferInput
                     triton_input = httpclient.InferInput(
                         input_spec['name'], 
                         input_tensor.shape, 
-                        input_spec['dtype']
+                        # Convert back to Triton dtype string for compatibility
+                        next(k for k, v in TRITON_DTYPE_MAP.items() if v == input_spec['dtype'])
                     )
                     triton_input.set_data_from_numpy(input_tensor)
                     inputs.append(triton_input)
@@ -159,6 +195,10 @@ class TritonTensorRTPredictor:
             for output_spec in self.outputs:
                 output_name = output_spec['name']
                 output_tensor = response.as_numpy(output_name)
+                
+                # Ensure correct dtype
+                output_tensor = output_tensor.astype(output_spec['dtype'])
+                
                 results.append(output_tensor)
             
             # Return a single tensor if only one output
@@ -173,24 +213,6 @@ class TritonTensorRTPredictor:
         """
         if hasattr(self, 'client'):
             del self.client
-
-
-numpy_to_torch_dtype_dict = {
-    np.uint8: torch.uint8,
-    np.int8: torch.int8,
-    np.int16: torch.int16,
-    np.int32: torch.int32,
-    np.int64: torch.int64,
-    np.float16: torch.float16,
-    np.float32: torch.float32,
-    np.float64: torch.float64,
-    np.complex64: torch.complex64,
-    np.complex128: torch.complex128,
-}
-if np.version.full_version >= "1.24.0":
-    numpy_to_torch_dtype_dict[np.bool_] = torch.bool
-else:
-    numpy_to_torch_dtype_dict[np.bool] = torch.bool
 
 def get_predictor(**kwargs):
   return TritonTensorRTPredictor(**kwargs)
