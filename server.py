@@ -133,41 +133,41 @@ class VideoTransformTrack(MediaStreamTrack):
         logger.debug(f"VideoTransformTrack recv called #{self.uid}")
         frame = None
         animated_face = None
-        try:
-            logger.debug("Received frame from original track")
-            frame = await self.track.recv()
-            # Convert frame to numpy array
-            img = frame.to_ndarray(format="rgb24")
+        # try:
+        logger.debug("Received frame from original track")
+        frame = await self.track.recv()
+        # Convert frame to numpy array
+        img = frame.to_ndarray(format="rgb24")
 
-            if not self.initialized:
-                self.initialized = True
-            
-            t0 = time.time()
-            first_frame = self.frame_ind == 0
-            dri_crop, out_crop, out_org = pipe.run(img, pipe.src_imgs[0], pipe.src_infos[0], first_frame=first_frame)
-            self.frame_ind += 1
-            if out_crop is None:
-                logger.info(f"no face in driving frame:{self.frame_ind}")
-                return frame
-            self.infer_times.append(time.time() - t0)
-            logger.info(time.time() - t0)
-            # dri_crop = cv2.resize(dri_crop, (512, 512))
-            # out_crop = np.concatenate([dri_crop, out_crop], axis=1)
-            # out_crop = cv2.cvtColor(out_crop, cv2.COLOR_RGB2BGR)
-            
-            # #self.ffmpeg_process.stdin.write(animated_face.tobytes())
-            
-            # # # Convert back to VideoFrame
-            new_frame = VideoFrame.from_ndarray(out_crop, format="rgb24")
-            new_frame.pts = frame.pts
-            new_frame.time_base = frame.time_base
-            
-            # logger.debug("Returning processed frame")
-            return new_frame
+        if not self.initialized:
+            self.initialized = True
         
-        except Exception as e:
-            logger.error(f"Error in VideoTransformTrack.recv: {e}")
+        t0 = time.time()
+        first_frame = self.frame_ind == 0
+        dri_crop, out_crop, out_org = pipe.run(img, pipe.src_imgs[0], pipe.src_infos[0], first_frame=first_frame)
+        self.frame_ind += 1
+        if out_crop is None:
+            logger.info(f"no face in driving frame:{self.frame_ind}")
             return frame
+        self.infer_times.append(time.time() - t0)
+        logger.info(time.time() - t0)
+        # dri_crop = cv2.resize(dri_crop, (512, 512))
+        # out_crop = np.concatenate([dri_crop, out_crop], axis=1)
+        # out_crop = cv2.cvtColor(out_crop, cv2.COLOR_RGB2BGR)
+        
+        # #self.ffmpeg_process.stdin.write(animated_face.tobytes())
+        
+        # # # Convert back to VideoFrame
+        new_frame = VideoFrame.from_ndarray(out_crop, format="rgb24")
+        new_frame.pts = frame.pts
+        new_frame.time_base = frame.time_base
+        
+        # logger.debug("Returning processed frame")
+        return new_frame
+        
+        # except Exception as e:
+        #     logger.error(f"Error in VideoTransformTrack.recv: {e}")
+        #     return frame
 
     def handle_message(self, message):
         if message['type'] == 'strength':
