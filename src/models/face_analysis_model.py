@@ -168,6 +168,7 @@ class FaceAnalysisModel:
         return keep
 
     def detect_face(self, *data):
+        print("coming here")
         img = data[0]  # BGR mode
         im_ratio = float(img.shape[0]) / img.shape[1]
         input_size = self.input_size
