@@ -15,7 +15,7 @@ class TritonPredictor:
         self.debug = True
 
         # Initialize Triton gRPC client
-        self.client = grpcclient.InferenceServerClient(url=self.url, verbose=self.debug)
+        self.client = grpcclient.InferenceServerClient(url=self.url, verbose=False)
 
         # Check if model is ready
         if not self.client.is_model_ready(self.model_name, self.model_version):
