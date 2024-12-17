@@ -21,7 +21,7 @@ TRITON_DTYPE_MAP = {
 class TritonTensorRTPredictor:
     """
     Implements inference for TensorRT models served via Triton Inference Server
-    Enhanced dtype handling
+    Enhanced input handling and dtype conversion
     """
 
     def __init__(self, **kwargs):
@@ -118,7 +118,7 @@ class TritonTensorRTPredictor:
     def predict(self, *data, **kwargs):
         """
         Execute inference on Triton server
-        Supports both TensorRT-style input (feed_dict, stream) and ORT-style direct input
+        Supports multiple input styles
         
         :param data: Input tensor(s)
         :param kwargs: Additional arguments (stream for TensorRT-style)
@@ -129,25 +129,58 @@ class TritonTensorRTPredictor:
             inputs = []
             
             # Handle different input styles
-            if len(data) == 1 and isinstance(data[0], dict):
-                # TensorRT-style feed_dict with stream
-                feed_dict = data[0]
-                stream = kwargs.get('stream', None)
-                
-                for input_spec in self.inputs:
-                    input_name = input_spec['name']
-                    input_tensor = feed_dict[input_name]
+            if len(data) == 1:
+                if isinstance(data[0], dict):
+                    # TensorRT-style feed_dict
+                    feed_dict = data[0]
+                    stream = kwargs.get('stream', None)
+                    
+                    for input_spec in self.inputs:
+                        input_name = input_spec['name']
+                        input_tensor = feed_dict[input_name]
+                        
+                        # Handle different input types
+                        if isinstance(input_tensor, dict):
+                            # If input is a dict, try to extract the tensor
+                            input_tensor = input_tensor.get('tensor', input_tensor)
+                        
+                        # Convert torch tensor to numpy if necessary
+                        if torch.is_tensor(input_tensor):
+                            input_tensor = input_tensor.cpu().numpy()
+                        
+                        # Ensure correct dtype
+                        input_tensor = np.array(input_tensor, dtype=input_spec['dtype'])
+                        
+                        # Create Triton InferInput
+                        triton_input = httpclient.InferInput(
+                            input_name, 
+                            input_tensor.shape, 
+                            # Convert back to Triton dtype string for compatibility
+                            next(k for k, v in TRITON_DTYPE_MAP.items() if v == input_spec['dtype'])
+                        )
+                        triton_input.set_data_from_numpy(input_tensor)
+                        inputs.append(triton_input)
+                else:
+                    # Direct input tensor
+                    input_tensor = data[0]
+                    
+                    # Handle different input types
+                    if isinstance(input_tensor, dict):
+                        # If input is a dict, try to extract the tensor
+                        input_tensor = input_tensor.get('tensor', input_tensor)
                     
                     # Convert torch tensor to numpy if necessary
                     if torch.is_tensor(input_tensor):
                         input_tensor = input_tensor.cpu().numpy()
                     
+                    input_spec = self.inputs[0]
+                    
                     # Ensure correct dtype
-                    input_tensor = input_tensor.astype(input_spec['dtype'])
+                    input_tensor = np.array(input_tensor, dtype=input_spec['dtype'])
                     
                     # Create Triton InferInput
                     triton_input = httpclient.InferInput(
-                        input_name, 
+                        input_spec['name'], 
                         input_tensor.shape, 
                         # Convert back to Triton dtype string for compatibility
                         next(k for k, v in TRITON_DTYPE_MAP.items() if v == input_spec['dtype'])
@@ -155,16 +188,21 @@ class TritonTensorRTPredictor:
                     triton_input.set_data_from_numpy(input_tensor)
                     inputs.append(triton_input)
             else:
-                # ORT-style direct input
+                # Multiple direct inputs
                 for i, input_tensor in enumerate(data):
                     input_spec = self.inputs[i]
+                    
+                    # Handle different input types
+                    if isinstance(input_tensor, dict):
+                        # If input is a dict, try to extract the tensor
+                        input_tensor = input_tensor.get('tensor', input_tensor)
                     
                     # Convert torch tensor to numpy if necessary
                     if torch.is_tensor(input_tensor):
                         input_tensor = input_tensor.cpu().numpy()
                     
                     # Ensure correct dtype
-                    input_tensor = input_tensor.astype(input_spec['dtype'])
+                    input_tensor = np.array(input_tensor, dtype=input_spec['dtype'])
                     
                     # Create Triton InferInput
                     triton_input = httpclient.InferInput(
@@ -191,7 +229,7 @@ class TritonTensorRTPredictor:
             )
             
             # Process and return results
-            results = []
+            results = {}
             for output_spec in self.outputs:
                 output_name = output_spec['name']
                 output_tensor = response.as_numpy(output_name)
@@ -199,10 +237,9 @@ class TritonTensorRTPredictor:
                 # Ensure correct dtype
                 output_tensor = output_tensor.astype(output_spec['dtype'])
                 
-                results.append(output_tensor)
+                results[output_name] = torch.from_numpy(output_tensor)
             
-            # Return a single tensor if only one output
-            return results[0] if len(results) == 1 else results
+            return results
         
         except InferenceServerException as e:
             raise RuntimeError(f"Inference failed: {e}")
