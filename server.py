@@ -68,15 +68,14 @@ default_paste_back = False
 
 infer_cfg = OmegaConf.load(default_cfg)
 infer_cfg.infer_params.flag_pasteback = default_paste_back
-pipe = FasterLivePortraitPipeline(cfg=infer_cfg, is_animal=False)
-ret = pipe.prepare_source(default_src_image, realtime=True)
-logger.info(ret)
-logger.info(len(pipe.src_imgs))
-logger.info(len(pipe.src_infos))
-if not ret or len(pipe.src_imgs) == 0 or len(pipe.src_infos) == 0:
-    logger.info(f"No face detected in {default_src_image}! Please use a different source image.")
-    # Handle this error by exiting or using a fallback
-    exit(1)
+
+# logger.info(ret)
+# logger.info(len(pipe.src_imgs))
+# logger.info(len(pipe.src_infos))
+# if not ret or len(pipe.src_imgs) == 0 or len(pipe.src_infos) == 0:
+#     logger.info(f"No face detected in {default_src_image}! Please use a different source image.")
+#     # Handle this error by exiting or using a fallback
+#     exit(1)
 
 class VideoTransformTrack(MediaStreamTrack):
     kind = "video"
@@ -90,6 +89,7 @@ class VideoTransformTrack(MediaStreamTrack):
         self.uid = str(uuid.uuid4())
         self.infer_times = []
         self.frame_ind = 0
+        self.pipe = FasterLivePortraitPipeline(cfg=infer_cfg, is_animal=False)
 
     def load_source_image(self, image_path):
         image = None
@@ -144,11 +144,12 @@ class VideoTransformTrack(MediaStreamTrack):
         img = frame.to_ndarray(format="rgb24")
 
         if not self.initialized:
+            self.pipe.prepare_source(default_src_image, realtime=True)
             self.initialized = True
         
         t0 = time.time()
         first_frame = self.frame_ind == 0
-        dri_crop, out_crop, out_org = pipe.run(img, pipe.src_imgs[0], pipe.src_infos[0], first_frame=first_frame)
+        dri_crop, out_crop, out_org = self.pipe.run(img, self.pipe.src_imgs[0], self.pipe.src_infos[0], first_frame=first_frame)
         self.frame_ind += 1
         if out_crop is None:
             logger.info(f"no face in driving frame:{self.frame_ind}")
