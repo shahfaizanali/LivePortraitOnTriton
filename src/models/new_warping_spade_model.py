@@ -33,7 +33,7 @@ class WarpingSpadeModel(BaseModel):
     def output_process(self, *data):
         # data[0] is assumed to be a NumPy array from Triton
         out = data[0]  # shape: NCHW, float in [0, 1]
-        
+        out = out.copy()
         # Clip and scale to 0-255
         np.clip(out, 0, 1, out=out)
         out = (out * 255).astype(np.uint8)
