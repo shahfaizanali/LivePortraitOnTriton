@@ -31,10 +31,8 @@ class TritonPredictor:
             self.inputs.append({"name": inp.name, "dtype": inp.datatype, "shape": inp.shape})
 
         self.outputs = []
-        print(self.model_name)
         for out in self.model_metadata.outputs:
             self.outputs.append({"name": out.name, "dtype": out.datatype, "shape": out.shape})
-            print(out.name, out.datatype, out.shape)
 
     def input_spec(self):
         specs = []
