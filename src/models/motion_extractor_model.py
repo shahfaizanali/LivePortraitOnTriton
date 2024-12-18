@@ -6,6 +6,7 @@
 
 import numpy as np
 from .new_base_model import BaseModel
+from .new_predictor import get_predictor
 
 def headpose_pred_to_degree(pred):
     if pred.ndim > 1 and pred.shape[1] == 66:
@@ -23,6 +24,10 @@ class MotionExtractorModel(BaseModel):
     def __init__(self, **kwargs):
         super(MotionExtractorModel, self).__init__(**kwargs)
         self.flag_refine_info = kwargs.get("flag_refine_info", True)
+        self.predictor = get_predictor(model_name="motion_extractor")
+        if self.predictor is not None:
+            self.input_shapes = self.predictor.input_spec()
+            self.output_shapes = self.predictor.output_spec()
 
     def input_process(self, *data):
         img = data[0].astype(np.float32)
