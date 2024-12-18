@@ -3,56 +3,58 @@
 # @Email   : wenshaoguo1026@gmail.com
 # @Project : FasterLivePortrait
 # @FileName: warping_spade_model.py
-import pdb
-import numpy as np
-from .base_model import BaseModel
-import torch
-from torch.cuda import nvtx
-from .predictor import numpy_to_torch_dtype_dict
 
+from .new_predictor import get_predictor
+import numpy as np
+from .new_base_model import BaseModel
+import torch
 
 class WarpingSpadeModel(BaseModel):
     """
-    WarpingSpade Model
+    WarpingSpade Model using Triton for inference
     """
 
     def __init__(self, **kwargs):
         super(WarpingSpadeModel, self).__init__(**kwargs)
+        self.predictor = get_predictor(model_name="motion_extractor")
+        if self.predictor is not None:
+            self.input_shapes = self.predictor.input_spec()
+            self.output_shapes = self.predictor.output_spec()
 
     def input_process(self, *data):
-        feature_3d, kp_source, kp_driving = data
+        # Data order: feature_3d, kp_source, kp_driving
+        # The original code order is feature_3d, kp_driving, kp_source - ensure correct order:
+        feature_3d, kp_driving, kp_source = data
         return feature_3d, kp_driving, kp_source
 
     def output_process(self, *data):
-        if self.predict_type != "trt":
-            out = torch.from_numpy(data[0]).to(self.device).float()
-        else:
-            out = data[0]
+        # data[0] is the model output (assume one output)
+        # Convert from NumPy to torch tensor
+        out = torch.from_numpy(data[0])  # on CPU
+        # Permute from NCHW to NHWC and scale to 0-255
         out = out.permute(0, 2, 3, 1)
         out = torch.clip(out, 0, 1) * 255
         return out[0]
 
-    def predict_trt(self, *data):
-        nvtx.range_push("forward")
-        feed_dict = {}
-        for i, inp in enumerate(self.predictor.inputs):
-            if isinstance(data[i], torch.Tensor):
-                feed_dict[inp['name']] = data[i]
-            else:
-                feed_dict[inp['name']] = torch.from_numpy(data[i]).to(device=self.device,
-                                                                      dtype=numpy_to_torch_dtype_dict[inp['dtype']])
-        preds_dict = self.predictor.predict(feed_dict, self.cudaStream)
-        outs = []
-        for i, out in enumerate(self.predictor.outputs):
-            outs.append(preds_dict[out["name"]].clone())
-        nvtx.range_pop()
-        return outs
-
     def predict(self, *data):
-        data = self.input_process(*data)
-        if self.predict_type == "trt":
-            preds = self.predict_trt(*data)
-        else:
-            preds = self.predictor.predict(*data)
-        outputs = self.output_process(*preds)
+        feature_3d, kp_driving, kp_source = self.input_process(*data)
+
+        # Create feed_dict for Triton
+        feed_dict = {}
+        # Assuming predictor.inputs are in the same order as the model expects:
+        # Adjust if the model input names differ or order is different.
+        feed_dict[self.predictor.inputs[0]['name']] = feature_3d.astype(np.float32)
+        feed_dict[self.predictor.inputs[1]['name']] = kp_driving.astype(np.float32)
+        feed_dict[self.predictor.inputs[2]['name']] = kp_source.astype(np.float32)
+
+        # Triton inference
+        preds_dict = self.predictor.predict(feed_dict)
+
+        # Gather outputs
+        outs = []
+        for out_meta in self.predictor.outputs:
+            outs.append(preds_dict[out_meta["name"]])
+
+        # Process outputs
+        outputs = self.output_process(*outs)
         return outputs
