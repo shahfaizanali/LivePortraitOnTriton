@@ -1,36 +1,38 @@
 import numpy as np
-import tritonclient.http as httpclient
+import tritonclient.grpc as grpcclient
 
+# Only keeping what we need for Triton
 class TritonPredictor:
     """
-    TritonPredictor sends requests to a Triton Inference Server using the HTTP protocol.
+    TritonPredictor sends requests to a Triton Inference Server.
+    You need a running Triton server with your model deployed.
     """
 
-    def __init__(self, model_name, url="localhost:8000", model_version="", debug=False):
+    def __init__(self, model_name, url="localhost:8001", model_version="", debug=False):
         self.url = url
         self.model_name = model_name
         self.model_version = model_version
-        self.debug = debug
+        self.debug = True
 
-        # Initialize Triton HTTP client
-        self.client = httpclient.InferenceServerClient(url=self.url, verbose=self.debug)
+        # Initialize Triton gRPC client
+        self.client = grpcclient.InferenceServerClient(url=self.url, verbose=False)
 
         # Check if model is ready
         if not self.client.is_model_ready(self.model_name, self.model_version):
             raise RuntimeError(f"Model {self.model_name} not ready on Triton server at {self.url}")
 
-        # Get model metadata and config
+        # Get model metadata
         self.model_metadata = self.client.get_model_metadata(self.model_name, self.model_version)
         self.model_config = self.client.get_model_config(self.model_name, self.model_version)
 
         # Parse input and output specs
         self.inputs = []
-        for inp in self.model_metadata['inputs']:
-            self.inputs.append({"name": inp['name'], "dtype": inp['datatype'], "shape": inp['shape']})
+        for inp in self.model_metadata.inputs:
+            self.inputs.append({"name": inp.name, "dtype": inp.datatype, "shape": inp.shape})
 
         self.outputs = []
-        for out in self.model_metadata['outputs']:
-            self.outputs.append({"name": out['name'], "dtype": out['datatype'], "shape": out['shape']})
+        for out in self.model_metadata.outputs:
+            self.outputs.append({"name": out.name, "dtype": out.datatype, "shape": out.shape})
 
     def input_spec(self):
         specs = []
@@ -52,22 +54,15 @@ class TritonPredictor:
         # feed_dict: {input_name: np_array}
         triton_inputs = []
         for inp_meta in self.inputs:
-            inp_data = feed_dict[inp_meta["name"]]
-            inp = httpclient.InferInput(inp_meta["name"], inp_data.shape, inp_meta["dtype"])
-            inp.set_data_from_numpy(inp_data)
+            inp = grpcclient.InferInput(inp_meta["name"], feed_dict[inp_meta["name"]].shape, inp_meta["dtype"])
+            inp.set_data_from_numpy(feed_dict[inp_meta["name"]])
             triton_inputs.append(inp)
 
         triton_outputs = []
         for out_meta in self.outputs:
-            triton_outputs.append(httpclient.InferRequestedOutput(out_meta["name"]))
+            triton_outputs.append(grpcclient.InferRequestedOutput(out_meta["name"]))
 
-        # Send inference request
-        result = self.client.infer(
-            self.model_name,
-            inputs=triton_inputs,
-            outputs=triton_outputs,
-            model_version=self.model_version
-        )
+        result = self.client.infer(self.model_name, triton_inputs, outputs=triton_outputs)
 
         out_dict = {}
         for out_meta in self.outputs:
@@ -75,5 +70,5 @@ class TritonPredictor:
         return out_dict
 
 
-def get_predictor(model_name, url="localhost:8000", debug=False):
+def get_predictor(model_name, url="localhost:8001", debug=False):
     return TritonPredictor(model_name=model_name, url=url, debug=debug)
