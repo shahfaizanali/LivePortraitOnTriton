@@ -226,12 +226,13 @@
             }
         }
 
-        async function updateImageSelector(imageList) {
+        async function updateImageSelector(imageList, selected) {
             imageSelector.innerHTML = '';
             imageList.forEach(imageName => {
                 const option = document.createElement('option');
                 option.value = imageName;
                 option.textContent = imageName;
+                option.selected = imageName === selected
                 imageSelector.appendChild(option);
             });
         }
@@ -259,7 +260,7 @@
             try {
                 const response = await fetch('/get-available');
                 const imageList = await response.json();
-                updateImageSelector(imageList);
+                updateImageSelector(imageList, "default");
             } catch (error) {
                 console.error('Error fetching available images:', error);
             }
