@@ -25,10 +25,10 @@ class WarpingSpadeModel(BaseModel):
 
 
     def input_process(self, *data):
-        # Data order: feature_3d, kp_source, kp_driving
-        # The original code order is feature_3d, kp_driving, kp_source - ensure correct order:
-        feature_3d, kp_driving, kp_source = data
-        return feature_3d, kp_driving, kp_source
+      # Keep the original ordering from your old code:
+      feature_3d, kp_source, kp_driving = data
+      return feature_3d, kp_driving, kp_source
+
 
     def output_process(self, *data):
         # data[0] is the model output (assume one output)
