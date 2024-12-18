@@ -56,7 +56,7 @@ rtc_configuration = RTCConfiguration(
 # default_source_image = cv2.imread("deepfake_cleveland.png")
 # default_source_image = cv2.cvtColor(default_source_image, cv2.COLOR_BGR2RGB)
 
-image_map = {"default": "deepfake_cleveland.png"}
+image_map = {"default": "./images/default.png"}
 
 
 # Assign default values to variables
@@ -299,7 +299,7 @@ async def upload_image(request):
     if field.name == 'file':
         filename = field.filename
         extension = filename.split(".")[-1]
-        file_path = os.path.join('/images', f"{uuid.uuid4()}.{extension}")
+        file_path = os.path.join('./images', f"{uuid.uuid4()}.{extension}")
         with open(file_path, 'wb') as f:
             while True:
                 chunk = await field.read_chunk()
