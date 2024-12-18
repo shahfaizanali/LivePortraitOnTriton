@@ -51,12 +51,57 @@ rtc_configuration = RTCConfiguration(
     #iceCandidatePoolSize=0,
 )
 
+def create_image_map(images_dir='./images'):
+    """
+    Creates a dictionary mapping image filenames (without extension) to their relative paths.
 
+    Args:
+        images_dir (str): Path to the directory containing images.
+
+    Returns:
+        dict: A dictionary with keys as filenames without extensions and values as file paths.
+    """
+    # Get absolute path of images_dir
+    images_path = os.path.abspath(images_dir)
+
+    # Check if the directory exists
+    if not os.path.isdir(images_path):
+        raise FileNotFoundError(f"The directory {images_dir} does not exist.")
+
+    # Define allowed image extensions (case-insensitive)
+    allowed_extensions = {'.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tiff', '.webp'}
+
+    image_map = {}
+
+    # Iterate over all entries in the images directory
+    for entry in os.listdir(images_path):
+        entry_path = os.path.join(images_path, entry)
+        
+        # Check if it's a file
+        if os.path.isfile(entry_path):
+            # Split the file name and extension
+            filename, ext = os.path.splitext(entry)
+            
+            # Check if the file has an allowed image extension
+            if ext.lower() in allowed_extensions:
+                # Create the key as the filename without extension
+                key = filename
+                
+                # Create the relative path
+                # os.path.relpath computes the relative file path to the current working directory
+                relative_path = os.path.relpath(entry_path, os.getcwd())
+                
+                # Ensure the relative path uses forward slashes for consistency
+                relative_path = relative_path.replace(os.sep, '/')
+                
+                image_map[key] = f"./{relative_path}"
+
+    return image_map
 # Load a source image for animation (you may want to make this configurable)
 # default_source_image = cv2.imread("deepfake_cleveland.png")
 # default_source_image = cv2.cvtColor(default_source_image, cv2.COLOR_BGR2RGB)
 
-image_map = {"default": "./images/default.png"}
+image_map = create_image_map()
 
 
 # Assign default values to variables
@@ -83,7 +128,7 @@ class VideoTransformTrack(MediaStreamTrack):
     def __init__(self, track):
         super().__init__()
         self.track = track
-        self.source_image = self.load_source_image(image_map["default"])
+        self.source_image = image_map["default"]
         self.last_animated_face = None
         self.initialized = False
         self.uid = str(uuid.uuid4())
@@ -110,7 +155,7 @@ class VideoTransformTrack(MediaStreamTrack):
 
 
     def update_source_image(self, file_key):
-        self.source_image = self.load_source_image(image_map[file_key])
+        self.source_image = image_map[file_key]
         self.initialized = False
 
     def start_ffmpeg_process(self):
@@ -144,7 +189,7 @@ class VideoTransformTrack(MediaStreamTrack):
         img = frame.to_ndarray(format="rgb24")
 
         if not self.initialized:
-            self.pipe.prepare_source(default_src_image, realtime=True)
+            self.pipe.prepare_source(self.source_image, realtime=True)
             self.initialized = True
         
         t0 = time.time()
@@ -331,6 +376,8 @@ async def update_source_image(request):
     return web.Response(status=200)
 
 async def get_available_files(request):
+    global image_map
+    image_map = create_image_map()
     return web.Response(text=json.dumps(list(image_map.keys())), content_type='application/json')
 
 
