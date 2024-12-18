@@ -27,7 +27,7 @@ from aiortc.contrib.media import MediaRelay
 from av import VideoFrame
 from omegaconf import OmegaConf
 
-from src.pipelines.faster_live_portrait_pipeline import FasterLivePortraitPipeline
+from src.pipelines.new_faster_live_portrait_pipeline import FasterLivePortraitPipeline
 from src.utils.utils import video_has_audio
 
 

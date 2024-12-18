@@ -59,13 +59,12 @@ class FaceAnalysisModel:
         # Provide model names and Triton URL here:
         face_det_model_name = kwargs.get("face_det_model_name", "retinaface_det_static")
         face_pose_model_name = kwargs.get("face_pose_model_name", "face_2dpose_106_static")
-        url = kwargs.get("url", "localhost:8001")
 
-        self.face_det = get_predictor(model_name=face_det_model_name, url=url)
+        self.face_det = get_predictor(model_name=face_det_model_name)
         self.face_det.input_spec()
         self.face_det.output_spec()
 
-        self.face_pose = get_predictor(model_name=face_pose_model_name, url=url)
+        self.face_pose = get_predictor(model_name=face_pose_model_name)
         self.face_pose.input_spec()
         self.face_pose.output_spec()
 
