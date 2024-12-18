@@ -378,7 +378,7 @@ class FasterLivePortraitPipeline:
             # if not realtime and self.cfg.infer_params.flag_pasteback and self.cfg.infer_params.flag_do_crop and self.cfg.infer_params.flag_stitching:
             #     I_p_pstbk = paste_back_pytorch(out_crop, M, I_p_pstbk, mask_ori_float)
 
-        return img_crop, out_crop.to(dtype=torch.uint8).cpu().numpy(), I_p_pstbk.to(dtype=torch.uint8).cpu().numpy()
+        return img_crop, out_crop, I_p_pstbk.to(dtype=torch.uint8).cpu().numpy()
 
     def __del__(self):
         self.clean_models()
