@@ -16,7 +16,7 @@ class WarpingSpadeModel(BaseModel):
 
     def __init__(self, **kwargs):
         super(WarpingSpadeModel, self).__init__(**kwargs)
-        self.predictor = get_predictor(model_name="motion_extractor")
+        self.predictor = get_predictor(model_name="warping_spade-fix")
         if self.predictor is not None:
             self.input_shapes = self.predictor.input_spec()
             self.output_shapes = self.predictor.output_spec()
