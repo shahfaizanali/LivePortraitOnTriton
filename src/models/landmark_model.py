@@ -48,8 +48,6 @@ class LandmarkModel(BaseModel):
 
     def output_process(self, *data):
         out_pts, crop_dct = data
-        for i, output in enumerate(out_pts):
-          print(f"Shape of output {i}: {output.shape}")
         lmk = out_pts[2].reshape(-1, 2) * self.dsize  # scale to 0-224
         lmk = _transform_pts(lmk, M=crop_dct['M_c2o'])
         return lmk

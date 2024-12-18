@@ -25,14 +25,17 @@ models:
     name: "StitchingModel"
     predict_type: "trt"
     model_path: "./checkpoints/liveportrait_onnx/stitching.trt"
+    model_name: "stitching"
   stitching_eye_retarget:
     name: "StitchingModel"
     predict_type: "trt"
     model_path: "./checkpoints/liveportrait_onnx/stitching_eye.trt"
+    model_name: "stitching_eye"
   stitching_lip_retarget:
     name: "StitchingModel"
     predict_type: "trt"
     model_path: "./checkpoints/liveportrait_onnx/stitching_lip.trt"
+    model_name: "stitching_lip"
 
 
 crop_params:
