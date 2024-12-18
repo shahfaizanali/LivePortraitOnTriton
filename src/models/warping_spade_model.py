@@ -20,6 +20,9 @@ class WarpingSpadeModel(BaseModel):
         if self.predictor is not None:
             self.input_shapes = self.predictor.input_spec()
             self.output_shapes = self.predictor.output_spec()
+            print("Model Inputs:", self.predictor.inputs)
+
+
 
     def input_process(self, *data):
         # Data order: feature_3d, kp_source, kp_driving
