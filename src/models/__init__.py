@@ -4,7 +4,7 @@
 # @Project : FasterLivePortrait
 # @FileName: __init__.py.py
 
-from .warping_spade_model import WarpingSpadeModel
+from .new_warping_spade_model import WarpingSpadeModel
 from .motion_extractor_model import MotionExtractorModel
 from .appearance_feature_extractor_model import AppearanceFeatureExtractorModel
 from .new_landmark_model import LandmarkModel
