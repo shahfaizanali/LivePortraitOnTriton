@@ -275,7 +275,7 @@
                         height: { exact: parseInt(resolution[1]) },
                         frameRate: { ideal: 15, max: 15 }
                     },
-                    audio: false
+                    audio: true
                 };
 
                 const stream = await navigator.mediaDevices.getUserMedia(constraints);
