@@ -92,7 +92,7 @@ class VideoTransformTrack(MediaStreamTrack):
 
         # Adjust these parameters as needed (frame size, framerate, bitrate, etc.)
         return subprocess.Popen([
-            '/bin/ffmpeg',
+            'ffmpeg',
             '-f', 'rawvideo',
             '-pix_fmt', 'rgb24',
             '-s', '556x556',  # Must match the output frame size you're processing
