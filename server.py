@@ -230,3 +230,346 @@ class StreamHandler:
                 logging.info(f"Removed pipe {pipe}")
             except Exception as e:
                 logging.error(f"Error removing pipe {pipe}: {e}")
+                
+class VideoTransformTrack(MediaStreamTrack):
+    """
+    Processes video frames and writes them to the StreamHandler's video pipe.
+    """
+
+    kind = "video"
+
+    def __init__(self, track, stream_handler: StreamHandler):
+        super().__init__()
+        self.track = track
+        self.stream_handler = stream_handler
+        self.source_image = image_map.get("default", default_src_image)
+        self.initialized = False
+        self.infer_times = []
+        self.frame_ind = 0
+        self.pipe = FasterLivePortraitPipeline(cfg=infer_cfg, is_animal=False)
+
+    def update_source_image(self, file_key):
+        """
+        Updates the source image for video processing.
+        """
+        self.source_image = image_map[file_key]
+        self.initialized = False
+        logger.info(f"Updated source image for user {self.stream_handler.user_id} to {file_key}")
+
+    async def recv(self):
+        """
+        Receives a video frame, processes it, and writes it to the video pipe.
+        """
+        frame = await self.track.recv()
+        img = frame.to_ndarray(format="rgb24")
+
+        if not self.initialized:
+            self.pipe.prepare_source(self.source_image, realtime=True)
+            self.initialized = True
+
+        t0 = time.time()
+        first_frame = self.frame_ind == 0
+        dri_crop, out_crop, out_org = self.pipe.run(
+            img, self.pipe.src_imgs[0], self.pipe.src_infos[0], first_frame=first_frame
+        )
+        self.frame_ind += 1
+        if out_crop is None:
+            logger.info(f"No face detected in frame {self.frame_ind} for user {self.stream_handler.user_id}")
+            # In case of no output, write the original frame resized
+            out_crop = cv2.resize(img, self.stream_handler.video_resolution)
+            self.stream_handler.write_video_frame(out_crop)
+            return frame
+
+        inference_time = time.time() - t0
+        self.infer_times.append(inference_time)
+        logger.debug(f"Inference time for user {self.stream_handler.user_id}: {inference_time:.4f} seconds")
+
+        # Ensure out_crop matches the video resolution
+        out_crop = cv2.resize(out_crop, self.stream_handler.video_resolution)
+
+        # Write the processed video frame to FFmpeg's video pipe
+        self.stream_handler.write_video_frame(out_crop)
+
+        # Optionally, return the processed frame to the WebRTC client
+        new_frame = VideoFrame.from_ndarray(out_crop, format="rgb24")
+        new_frame.pts = frame.pts
+        new_frame.time_base = frame.time_base
+        return new_frame
+
+    def handle_message(self, message):
+        """
+        Handles messages received via the data channel.
+        """
+        if message["type"] == "strength":
+            # Example: Handle strength adjustments
+            pass
+        elif message["type"] == "reset":
+            # Example: Handle reset commands
+            pass
+
+    def stop(self):
+        """
+        Stops the VideoTransformTrack.
+        """
+        logger.info(f"Stopping VideoTransformTrack for user {self.stream_handler.user_id}")
+        super().stop()
+
+
+class AudioTransformTrack(MediaStreamTrack):
+    """
+    Pass-through audio track that writes raw audio data to the StreamHandler's audio pipe.
+    """
+
+    kind = "audio"
+
+    def __init__(self, track, stream_handler: StreamHandler):
+        super().__init__()
+        self.track = track
+        self.stream_handler = stream_handler
+
+    async def recv(self):
+        """
+        Receives an audio frame and writes it to the audio pipe.
+        """
+        frame = await self.track.recv()
+        pcm_data = frame.to_ndarray()
+
+        # Write PCM audio data to the StreamHandler's audio pipe
+        self.stream_handler.write_audio_frame(pcm_data)
+
+        # Return the original frame (pass-through)
+        return frame
+
+    def handle_message(self, message):
+        """
+        Handles messages received via the data channel.
+        """
+        # Currently, no audio processing, so no handling needed
+        pass
+
+    def stop(self):
+        """
+        Stops the AudioTransformTrack.
+        """
+        logger.info(f"Stopping AudioTransformTrack for user {self.stream_handler.user_id}")
+        super().stop()
+
+
+relay = MediaRelay()
+pcs = set()
+
+
+async def health(request):
+    return web.Response(status=200)
+
+
+async def index(request):
+    try:
+        content = open("index.html", "r").read()
+        return web.Response(content_type="text/html", text=content)
+    except Exception as e:
+        logger.error(f"Error serving index.html: {e}")
+        return web.Response(status=500, text="Internal Server Error")
+
+
+async def offer(request):
+    logger.info("Received offer request")
+    params = await request.json()
+    offer = RTCSessionDescription(sdp=params["sdp"], type=params["type"])
+
+    # Generate a unique user_id for this session
+    user_id = params.get("userId", str(uuid.uuid4()))
+    logger.info(f"Generated user_id: {user_id}")
+
+    # Create a StreamHandler for this user
+    stream_handler = StreamHandler(user_id)
+    logger.info(f"Created StreamHandler for user {user_id}")
+
+    # Create PeerConnection
+    pc = RTCPeerConnection(rtc_configuration)
+    pcs.add(pc)
+    logger.info(f"Created PeerConnection for user {user_id}")
+
+    local_video = None
+    local_audio = None
+
+    @pc.on("iceconnectionstatechange")
+    async def on_iceconnectionstatechange():
+        logger.info(f"ICE connection state for user {user_id}: {pc.iceConnectionState}")
+        if pc.iceConnectionState == "failed":
+            await pc.close()
+            pcs.discard(pc)
+            if local_video:
+                local_video.stop()
+            if local_audio:
+                local_audio.stop()
+            stream_handler.stop_ffmpeg()
+
+    @pc.on("connectionstatechange")
+    async def on_connectionstatechange():
+        logger.info(f"Connection state for user {user_id}: {pc.connectionState}")
+        if pc.connectionState in ["failed", "closed"]:
+            logger.error(f"Connection failed or closed for user {user_id}")
+            await pc.close()
+            pcs.discard(pc)
+            if local_video:
+                local_video.stop()
+            if local_audio:
+                local_audio.stop()
+            stream_handler.stop_ffmpeg()
+
+    @pc.on("track")
+    def on_track(track):
+        nonlocal local_video, local_audio
+        logger.info(f"Received track for user {user_id}: {track.kind}")
+        if track.kind == "video":
+            local_video = VideoTransformTrack(relay.subscribe(track, buffered=False), stream_handler)
+            pc.addTrack(local_video)
+            logger.info(f"Added VideoTransformTrack for user {user_id}")
+        elif track.kind == "audio":
+            local_audio = AudioTransformTrack(relay.subscribe(track, buffered=False), stream_handler)
+            pc.addTrack(local_audio)
+            logger.info(f"Added AudioTransformTrack for user {user_id}")
+
+    @pc.on("datachannel")
+    def on_datachannel(channel):
+        @channel.on("message")
+        def on_message(message):
+            logger.info(f"Datachannel message from user {user_id}: {message}")
+            if isinstance(message, str):
+                data = json.loads(message)
+                if local_video:
+                    local_video.handle_message(data)
+                if local_audio:
+                    local_audio.handle_message(data)
+
+    # Set remote description
+    await pc.setRemoteDescription(offer)
+    logger.info(f"Set remote description for user {user_id}")
+
+    # Create answer
+    answer = await pc.createAnswer()
+    await pc.setLocalDescription(answer)
+    logger.info(f"Created answer for user {user_id}")
+
+    # Prefer H264 codec if available
+    for transceiver in pc.getTransceivers():
+        if transceiver.kind == "video":
+            codecs = RTCRtpSender.getCapabilities("video").codecs
+            preferred_codecs = [codec for codec in codecs if codec.mimeType == "video/H264"]
+            if preferred_codecs:
+                transceiver.setCodecPreferences(preferred_codecs)
+                logger.info(f"Set codec preferences to H264 for user {user_id}")
+
+    # Prepare RTMP URL
+    host = request.host.split(":")[0]  # e.g., 'localhost' or 'avatar.prod.hypelaunch.io'
+    rtmp_url = f"rtmp://{host}:1935/live/{user_id}"
+    logger.info(f"User {user_id} RTMP URL: {rtmp_url}")
+
+    # Return the answer and RTMP URL to the client
+    return web.Response(
+        content_type="application/json",
+        text=json.dumps(
+            {
+                "sdp": pc.localDescription.sdp,
+                "type": pc.localDescription.type,
+                "user_id": user_id,
+                "stream_url": rtmp_url,
+            }
+        ),
+    )
+
+
+async def upload_image(request):
+    reader = await request.multipart()
+    field = await reader.next()
+    if field.name == "file":
+        filename = field.filename
+        extension = filename.split(".")[-1]
+        file_path = os.path.join("./images", f"{uuid.uuid4()}.{extension}")
+        with open(file_path, "wb") as f:
+            while True:
+                chunk = await field.read_chunk()
+                if not chunk:
+                    break
+                f.write(chunk)
+
+        image_map[filename] = file_path
+        logger.info(f"Uploaded image: {filename} -> {file_path}")
+        return web.Response(
+            text=json.dumps(list(image_map.keys())), content_type="application/json"
+        )
+    logger.warning("No file uploaded in /upload request")
+    return web.Response(status=400, text="No file uploaded")
+
+
+async def update_source_image(request):
+    params = await request.json()
+    image_key = params.get("image")
+
+    if image_key not in image_map:
+        logger.warning(f"Image key not found: {image_key}")
+        return web.Response(status=400, text="Image key not found")
+
+    if not os.path.exists(image_map[image_key]):
+        logger.warning(f"Source image not found: {image_map[image_key]}")
+        return web.Response(status=404, text="Source image not found")
+
+    for pc in pcs:
+        for sender in pc.getSenders():
+            track = sender.track
+            if track and track.kind == "video" and isinstance(track, VideoTransformTrack):
+                track.update_source_image(image_key)
+                logger.info(
+                    f"Updated source image for user {track.stream_handler.user_id} to {image_key}"
+                )
+
+    return web.Response(status=200, text="Source image updated")
+
+
+async def get_available_files(request):
+    global image_map
+    image_map = create_image_map()
+    return web.Response(
+        text=json.dumps(list(image_map.keys())), content_type="application/json"
+    )
+
+
+@web.middleware
+async def logging_middleware(request, handler):
+    logger.info(f"Received request: {request.method} {request.path}")
+    response = await handler(request)
+    logger.info(f"Sending response: {response.status}")
+    return response
+
+
+async def perf(request):
+    try:
+        content = open("perf-test.html", "r").read()
+        return web.Response(content_type="text/html", text=content)
+    except Exception as e:
+        logger.error(f"Error serving perf-test.html: {e}")
+        return web.Response(status=500, text="Internal Server Error")
+
+
+async def on_shutdown(app):
+    logger.info("Shutting down server")
+    coros = [pc.close() for pc in pcs]
+    await asyncio.gather(*coros)
+    pcs.clear()
+
+
+if __name__ == "__main__":
+    app = web.Application(middlewares=[logging_middleware])
+    app.on_shutdown.append(on_shutdown)
+    app.router.add_get("/health", health)
+    app.router.add_get("/", index)
+    app.router.add_get("/perf", perf)
+    app.router.add_post("/offer", offer)
+    app.router.add_post("/upload", upload_image)
+    app.router.add_post("/update-source-image", update_source_image)
+    app.router.add_get("/get-available", get_available_files)
+
+    port = int(os.getenv("PORT", 8081))
+    logger.info(f"Starting server on port {port}")
+    web.run_app(app, host="0.0.0.0", port=port)
