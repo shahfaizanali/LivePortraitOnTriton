@@ -1,15 +1,11 @@
-import argparse
 import asyncio
-import datetime
 import json
 import logging
 import os
-import platform
-import pdb
 import subprocess
 import time
 import uuid
-from typing import List
+
 import cv2
 import ffmpeg
 import numpy as np
@@ -17,7 +13,6 @@ from aiohttp import web
 from aiortc import (
     MediaStreamTrack,
     RTCConfiguration,
-    RTCIceCandidate,
     RTCIceServer,
     RTCPeerConnection,
     RTCSessionDescription,
@@ -30,8 +25,6 @@ from omegaconf import OmegaConf
 from src.pipelines.faster_live_portrait_pipeline import FasterLivePortraitPipeline
 from src.utils.utils import video_has_audio
 
-
-
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -42,191 +35,121 @@ ICE_SERVERS = [
     RTCIceServer(urls="stun:stun1.l.google.com:19302"),
 ]
 
-# Optimized RTCConfiguration
 rtc_configuration = RTCConfiguration(
     iceServers=ICE_SERVERS,
-    #iceTransportPolicy="all",
-    #bundlePolicy="max-bundle",
-    #rtcpMuxPolicy="require",
-    #iceCandidatePoolSize=0,
 )
 
 def create_image_map(images_dir='./images'):
-    """
-    Creates a dictionary mapping image filenames (without extension) to their relative paths.
-
-    Args:
-        images_dir (str): Path to the directory containing images.
-
-    Returns:
-        dict: A dictionary with keys as filenames without extensions and values as file paths.
-    """
-    # Get absolute path of images_dir
     images_path = os.path.abspath(images_dir)
 
-    # Check if the directory exists
     if not os.path.isdir(images_path):
         raise FileNotFoundError(f"The directory {images_dir} does not exist.")
 
-    # Define allowed image extensions (case-insensitive)
     allowed_extensions = {'.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tiff', '.webp'}
 
     image_map = {}
 
-    # Iterate over all entries in the images directory
     for entry in os.listdir(images_path):
         entry_path = os.path.join(images_path, entry)
         
-        # Check if it's a file
         if os.path.isfile(entry_path):
-            # Split the file name and extension
             filename, ext = os.path.splitext(entry)
-            
-            # Check if the file has an allowed image extension
             if ext.lower() in allowed_extensions:
-                # Create the key as the filename without extension
-                key = filename
-                
-                # Create the relative path
-                # os.path.relpath computes the relative file path to the current working directory
                 relative_path = os.path.relpath(entry_path, os.getcwd())
-                
-                # Ensure the relative path uses forward slashes for consistency
                 relative_path = relative_path.replace(os.sep, '/')
-                
-                image_map[key] = f"./{relative_path}"
+                image_map[filename] = f"./{relative_path}"
 
     return image_map
-# Load a source image for animation (you may want to make this configurable)
-# default_source_image = cv2.imread("deepfake_cleveland.png")
-# default_source_image = cv2.cvtColor(default_source_image, cv2.COLOR_BGR2RGB)
 
 image_map = create_image_map()
 
-
-# Assign default values to variables
+# Default values
 default_src_image = "deepfake_cleveland.png"
-default_dri_video = "assets/examples/driving/d14.mp4"
 default_cfg = "configs/trt_infer.yaml"
 default_paste_back = False
-
 
 infer_cfg = OmegaConf.load(default_cfg)
 infer_cfg.infer_params.flag_pasteback = default_paste_back
 
-# logger.info(ret)
-# logger.info(len(pipe.src_imgs))
-# logger.info(len(pipe.src_infos))
-# if not ret or len(pipe.src_imgs) == 0 or len(pipe.src_infos) == 0:
-#     logger.info(f"No face detected in {default_src_image}! Please use a different source image.")
-#     # Handle this error by exiting or using a fallback
-#     exit(1)
-
 class VideoTransformTrack(MediaStreamTrack):
     kind = "video"
 
-    def __init__(self, track):
+    def __init__(self, track, user_id):
         super().__init__()
         self.track = track
+        self.user_id = user_id
         self.source_image = image_map["default"]
         self.last_animated_face = None
         self.initialized = False
-        self.uid = str(uuid.uuid4())
         self.infer_times = []
         self.frame_ind = 0
         self.pipe = FasterLivePortraitPipeline(cfg=infer_cfg, is_animal=False)
+        self.ffmpeg_process = self.start_ffmpeg_process()
 
-    def load_source_image(self, image_path):
-        image = None
-        if image_path and os.path.exists(image_path):
-            image = cv2.imread(image_path)
-            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-           
-        else:
-            image = self.load_default_image()
-        
-        # resize the image to the next size that is divisible by two
-        height, width = image.shape[:2]
-        new_height = (height + 1) // 2 * 2
-        new_width = (width + 1) // 2 * 2
-        image = cv2.resize(image, (new_width, new_height))
+    def start_ffmpeg_process(self):
+        # Create a personalized RTMP URL
+        rtmp_url = f"rtmp://localhost:1935/live/{self.user_id}"
 
-        return image
-
+        # Adjust these parameters as needed (frame size, framerate, bitrate, etc.)
+        return subprocess.Popen([
+            '/bin/ffmpeg',
+            '-f', 'rawvideo',
+            '-pix_fmt', 'rgb24',
+            '-s', '556x556',  # Must match the output frame size you're processing
+            '-r', '30',       # Framerate
+            '-i', '-',
+            '-pix_fmt', 'yuv420p',
+            '-c:v', 'libx264',
+            '-b:v', '2M',
+            '-maxrate', '2M',
+            '-bufsize', '4M',
+            '-preset', 'ultrafast',
+            '-tune', 'zerolatency',
+            '-g', '60',
+            '-f', 'flv',
+            rtmp_url
+        ], stdin=subprocess.PIPE)
 
     def update_source_image(self, file_key):
         self.source_image = image_map[file_key]
         self.initialized = False
 
-    def start_ffmpeg_process(self):
-        return subprocess.Popen([
-            '/bin/ffmpeg',
-            '-f', 'rawvideo',
-            '-pix_fmt', 'rgb24',
-            '-s', '556x556',  # Adjust resolution as needed
-            '-r', '30',  # Adjust framerate as needed
-            '-i', '-',
-            '-pix_fmt', 'yuv420p',
-            '-c:v', 'libx264',
-            '-b:v', '2M',  # Adjust bitrate as needed
-            '-maxrate', '2M',
-            '-bufsize', '4M',
-            '-preset', 'ultrafast',
-            '-tune', 'zerolatency',
-            '-g', '60',  # Keyframe interval
-            '-f', 'flv',
-            'rtmp://localhost:1935/live/stream'
-        ], stdin=subprocess.PIPE)
-
     async def recv(self):
-        logger.debug(f"VideoTransformTrack recv called #{self.uid}")
-        frame = None
-        animated_face = None
-        # try:
-        logger.debug("Received frame from original track")
         frame = await self.track.recv()
-        # Convert frame to numpy array
         img = frame.to_ndarray(format="rgb24")
 
         if not self.initialized:
             self.pipe.prepare_source(self.source_image, realtime=True)
             self.initialized = True
-        
+
         t0 = time.time()
         first_frame = self.frame_ind == 0
         dri_crop, out_crop, out_org = self.pipe.run(img, self.pipe.src_imgs[0], self.pipe.src_infos[0], first_frame=first_frame)
         self.frame_ind += 1
         if out_crop is None:
-            logger.info(f"no face in driving frame:{self.frame_ind}")
+            logger.info(f"No face in driving frame: {self.frame_ind}")
+            # In case of no output, just return the original frame
             return frame
+
         self.infer_times.append(time.time() - t0)
         logger.info(time.time() - t0)
-        # dri_crop = cv2.resize(dri_crop, (512, 512))
-        # out_crop = np.concatenate([dri_crop, out_crop], axis=1)
-        # out_crop = cv2.cvtColor(out_crop, cv2.COLOR_RGB2BGR)
-        
-        # #self.ffmpeg_process.stdin.write(animated_face.tobytes())
-        
-        # # # Convert back to VideoFrame
+
+        # Ensure out_crop is 556x556 to match ffmpeg input
+        out_crop = cv2.resize(out_crop, (556, 556))
+
+        # Write the processed frame to FFmpeg
+        if self.ffmpeg_process and self.ffmpeg_process.stdin:
+            self.ffmpeg_process.stdin.write(out_crop.tobytes())
+
+        # Return the processed frame to the WebRTC client as well (optional)
         new_frame = VideoFrame.from_ndarray(out_crop, format="rgb24")
         new_frame.pts = frame.pts
         new_frame.time_base = frame.time_base
-        
-        # logger.debug("Returning processed frame")
         return new_frame
-        
-        # except Exception as e:
-        #     logger.error(f"Error in VideoTransformTrack.recv: {e}")
-        #     return frame
 
     def handle_message(self, message):
-        if message['type'] == 'strength':
-            self.power = float(message['value'])
-            global POWER
-            POWER = self.power
-        elif message['type'] == 'reset':
-            logger.info()
-            # lia_model.force_set_source_motion()
+        # Handle any datachannel messages if needed
+        pass
 
     def stop(self):
         logger.info("Stopping VideoTransformTrack and closing RTMP stream")
@@ -234,8 +157,10 @@ class VideoTransformTrack(MediaStreamTrack):
             self.ffmpeg_process.stdin.close()
             self.ffmpeg_process.wait()
             self.ffmpeg_process = None
+        super().stop()
 
 relay = MediaRelay()
+pcs = set()
 
 async def health(request):
     return web.Response(status=200)
@@ -244,33 +169,22 @@ async def index(request):
     content = open("index.html", "r").read()
     return web.Response(content_type="text/html", text=content)
 
-async def on_ice_candidate(request):
-    params = await request.json()
-    pc = request.app['peer_connections'].get(params['sessionId'])
-    if pc:
-        candidate = RTCIceCandidate(
-            sdpMid=params['sdpMid'],
-            sdpMLineIndex=params['sdpMLineIndex'],
-            candidate=params['candidate']
-        )
-        await pc.addIceCandidate(candidate)
-    return web.Response(status=201)
-
-
 async def offer(request):
     logger.info("Received offer request")
     params = await request.json()
-    logger.debug(f"Offer parameters: {params}")
     offer = RTCSessionDescription(sdp=params["sdp"], type=params["type"])
+
+    # Generate a user_id for this session
+    user_id = params.get("userId", str(uuid.uuid4()))
 
     pc = RTCPeerConnection(rtc_configuration)
     pcs.add(pc)
 
-    local_video = None  # Store the VideoTransformTrack instance
+    local_video = None
 
     @pc.on("iceconnectionstatechange")
     async def on_iceconnectionstatechange():
-        logger.info(f"ICE connection state changed to {pc.iceConnectionState}")
+        logger.info(f"ICE connection state: {pc.iceConnectionState}")
         if pc.iceConnectionState == "failed":
             await pc.close()
             pcs.discard(pc)
@@ -279,8 +193,8 @@ async def offer(request):
 
     @pc.on("connectionstatechange")
     async def on_connectionstatechange():
-        logger.info(f"Connection state changed to: {pc.connectionState}")
-        if pc.connectionState == "failed" or pc.connectionState == "closed":
+        logger.info(f"Connection state: {pc.connectionState}")
+        if pc.connectionState in ["failed", "closed"]:
             logger.error("Connection failed or closed")
             await pc.close()
             pcs.discard(pc)
@@ -292,27 +206,24 @@ async def offer(request):
         nonlocal local_video
         logger.info(f"Received track: {track.kind}")
         if track.kind == "video":
-            logger.info("Creating VideoTransformTrack")
-            local_video = VideoTransformTrack(relay.subscribe(track, buffered=False))
+            local_video = VideoTransformTrack(relay.subscribe(track, buffered=False), user_id)
             pc.addTrack(local_video)
 
     @pc.on("datachannel")
     def on_datachannel(channel):
         @channel.on("message")
         def on_message(message):
-            logger.info(f"Message: {message}")
+            logger.info(f"Datachannel message: {message}")
             if isinstance(message, str):
                 data = json.loads(message)
-                logger.info(f"Message: {message}")
-                for sender in pc.getTransceivers():
-                    if sender.sender.track and sender.sender.track.kind == "video":
-                        if isinstance(sender.sender.track, VideoTransformTrack):
-                            sender.sender.track.handle_message(data)
+                for sender in pc.getSenders():
+                    if sender.track and sender.track.kind == "video" and isinstance(sender.track, VideoTransformTrack):
+                        sender.track.handle_message(data)
 
     await pc.setRemoteDescription(offer)
     answer = await pc.createAnswer()
 
-    # Set codec preferences
+    # Prefer H264 if available
     for transceiver in pc.getTransceivers():
         if transceiver.kind == "video":
             codecs = RTCRtpSender.getCapabilities("video").codecs
@@ -321,22 +232,19 @@ async def offer(request):
 
     await pc.setLocalDescription(answer)
 
-    logger.info("Sending answer back to client")
+    # Return the RTMP URL to the client so they know where to connect via OBS
+    rtmp_url = f"rtmp://{request.host.split(':')[0]}:1935/live/{user_id}"
+    logger.info(f"User {user_id} RTMP URL: {rtmp_url}")
+
     return web.Response(
         content_type="application/json",
         text=json.dumps({
             "sdp": pc.localDescription.sdp,
-            "type": pc.localDescription.type
+            "type": pc.localDescription.type,
+            "user_id": user_id,
+            "stream_url": rtmp_url
         })
     )
-
-pcs = set()
-
-async def on_shutdown(app):
-    logger.info("Shutting down")
-    coros = [pc.close() for pc in pcs]
-    await asyncio.gather(*coros)
-    pcs.clear()
 
 async def upload_image(request):
     reader = await request.multipart()
@@ -361,17 +269,15 @@ async def update_source_image(request):
     image_key = params.get("image")
     
     if image_key not in image_map:
-        return web.Response(status=400, text="No source image path provided")
+        return web.Response(status=400, text="Image key not found")
 
-    
     if not os.path.exists(image_map[image_key]):
         return web.Response(status=404, text="Source image not found")
 
     for pc in pcs:
         for sender in pc.getSenders():
-            if sender.track and sender.track.kind == "video":
-                if isinstance(sender.track, VideoTransformTrack):
-                    sender.track.update_source_image(image_key)
+            if sender.track and sender.track.kind == "video" and isinstance(sender.track, VideoTransformTrack):
+                sender.track.update_source_image(image_key)
     
     return web.Response(status=200)
 
@@ -379,7 +285,6 @@ async def get_available_files(request):
     global image_map
     image_map = create_image_map()
     return web.Response(text=json.dumps(list(image_map.keys())), content_type='application/json')
-
 
 @web.middleware
 async def logging_middleware(request, handler):
@@ -392,6 +297,12 @@ async def perf(request):
     content = open("perf-test.html", "r").read()
     return web.Response(content_type="text/html", text=content)
 
+async def on_shutdown(app):
+    logger.info("Shutting down")
+    coros = [pc.close() for pc in pcs]
+    await asyncio.gather(*coros)
+    pcs.clear()
+
 if __name__ == "__main__":
     app = web.Application(middlewares=[logging_middleware])
     app.on_shutdown.append(on_shutdown)
@@ -402,7 +313,7 @@ if __name__ == "__main__":
     app.router.add_post("/upload", upload_image)
     app.router.add_post("/update-source-image", update_source_image)
     app.router.add_get("/get-available", get_available_files)
-    #app.router.add_post("/ice-candidate", on_ice_candidate)
+
     port = int(os.getenv("PORT", 8081))
     logger.info(f"Starting server on {port}")
     web.run_app(app, host="0.0.0.0", port=port)
