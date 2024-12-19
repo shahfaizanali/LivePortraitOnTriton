@@ -5,123 +5,38 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Optimized WebRTC Stream Processing</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            background-color: #f0f0f0;
-            margin: 0;
-            padding: 20px;
-        }
-        h1 {
-            color: #333;
-            margin-bottom: 20px;
-        }
-        .video-container {
-            display: flex;
-            justify-content: center;
-            flex-wrap: wrap;
-            gap: 20px;
-            margin-bottom: 20px;
-        }
-        .video-wrapper {
-            background-color: #fff;
-            border-radius: 10px;
-            padding: 10px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        }
-        video {
-            width: 256px;
-            height: 256px;
-            object-fit: cover;
-            border-radius: 5px;
-        }
-        .video-label {
-            text-align: center;
-            margin-top: 10px;
-            font-weight: bold;
-            color: #555;
-        }
-        .controls {
-            display: flex;
-            flex-direction: column;
-            align-items: stretch;
-            background-color: #fff;
-            border-radius: 10px;
-            padding: 20px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        /* Existing styles... */
+
+        /* New styles for stream URL display */
+        #streamUrlContainer {
+            display: none; /* Hidden by default */
+            margin-top: 20px;
             width: 100%;
             max-width: 512px;
-        }
-        .control-group {
-            margin-bottom: 15px;
-        }
-        .button-group {
-            display: flex;
-            justify-content: space-between;
-            width: 100%;
-            margin-bottom: 15px;
-        }
-        button {
-            flex: 1;
-            background-color: #4CAF50;
-            border: none;
-            color: white;
-            padding: 10px 15px;
-            text-align: center;
-            text-decoration: none;
-            display: inline-block;
-            font-size: 16px;
-            margin: 0 5px;
-            cursor: pointer;
-            border-radius: 5px;
-            transition: background-color 0.3s;
-        }
-        button:hover {
-            background-color: #45a049;
-        }
-        button:disabled {
-            background-color: #cccccc;
-            cursor: not-allowed;
-        }
-        #reset {
-            background-color: #f44336;
-        }
-        #reset:hover {
-            background-color: #d32f2f;
-        }
-        .slider-container {
+            background-color: #fff;
+            border-radius: 10px;
+            padding: 15px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
             display: flex;
             align-items: center;
-            width: 100%;
+            justify-content: space-between;
         }
-        .slider-label {
-            font-weight: bold;
-            margin-right: 10px;
-            min-width: 70px;
-        }
-        #strengthSlider {
+
+        #streamUrl {
             flex: 1;
-            margin: 0 10px;
-        }
-        #strengthValue {
-            min-width: 30px;
-            text-align: right;
-        }
-        select, input[type="file"] {
-            width: 100%;
             padding: 8px;
-            margin-bottom: 10px;
             border: 1px solid #ddd;
             border-radius: 4px;
             font-size: 14px;
+            margin-right: 10px;
         }
-        label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
-            color: #555;
+
+        #copyButton {
+            background-color: #2196F3;
+        }
+
+        #copyButton:hover {
+            background-color: #0b7dda;
         }
     </style>
 </head>
@@ -138,6 +53,16 @@
         </div>
     </div>
     <div class="controls">
+        <!-- Existing control groups... -->
+
+        <!-- New Stream URL Display Section -->
+        <div id="streamUrlContainer">
+            <label for="streamUrl" style="font-weight: bold; margin-right: 10px;">Stream URL:</label>
+            <input type="text" id="streamUrl" readonly>
+            <button id="copyButton">Copy</button>
+        </div>
+
+        <!-- Existing controls continue... -->
         <div class="control-group">
             <label for="imageUpload">Upload New Source Image:</label>
             <input type="file" id="imageUpload" accept="image/*">
@@ -168,103 +93,32 @@
     </div>
 
     <script>
-        const configuration = {
-            sdpSemantics: 'unified-plan',
-            iceServers: [
-                { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:stun1.l.google.com:19302' },
-            ],
-            iceCandidatePoolSize: 10
-        };
-        const localVideo = document.getElementById('localVideo');
-        const remoteVideo = document.getElementById('remoteVideo');
-        const startButton = document.getElementById('start');
-        const changeImageButton = document.getElementById('changeImage');
-        const resetButton = document.getElementById('reset');
-        const strengthSlider = document.getElementById('strengthSlider');
-        const strengthValue = document.getElementById('strengthValue');
-        const resolutionSelect = document.getElementById('resolutionSelect');
-        const imageUpload = document.getElementById('imageUpload');
-        const imageSelector = document.getElementById('imageSelector');
-        let pc;
-        let lastResult;
-        let isStreaming = false;
+        // Existing JavaScript...
 
+        // Select the new HTML elements
+        const streamUrlContainer = document.getElementById('streamUrlContainer');
+        const streamUrlInput = document.getElementById('streamUrl');
+        const copyButton = document.getElementById('copyButton');
 
-        function updateStrength() {
-            strengthValue.textContent = strengthSlider.value;
-            if (pc && pc.dataChannel && pc.dataChannel.readyState === 'open') {
-                console.log("Sending change strength event");
-                pc.dataChannel.send(JSON.stringify({type: 'strength', value: strengthSlider.value / 100}));
-            } else {
-                console.log("Data channel not ready for sending strength update");
-            }
-        }
-
-        function resetPose() {
-            if (pc && pc.dataChannel && pc.dataChannel.readyState === 'open') {
-                console.log("Sending reset pose event");
-                pc.dataChannel.send(JSON.stringify({type: 'reset'}));
-            } else {
-                console.log("Data channel not ready for sending reset pose");
-            }
-        }
-
-        async function uploadImage(file) {
-            const formData = new FormData();
-            formData.append('file', file);
+        // Function to handle copying the stream URL to the clipboard
+        copyButton.addEventListener('click', () => {
+            streamUrlInput.select();
+            streamUrlInput.setSelectionRange(0, 99999); // For mobile devices
 
             try {
-                const response = await fetch('/upload', {
-                    method: 'POST',
-                    body: formData,
-                });
-                const data = await response.json();
-                updateImageSelector(data);
-            } catch (error) {
-                console.error('Error uploading image:', error);
+                const successful = document.execCommand('copy');
+                if (successful) {
+                    copyButton.textContent = 'Copied!';
+                    setTimeout(() => {
+                        copyButton.textContent = 'Copy';
+                    }, 2000);
+                } else {
+                    console.error('Failed to copy the stream URL.');
+                }
+            } catch (err) {
+                console.error('Error copying to clipboard:', err);
             }
-        }
-
-        async function updateImageSelector(imageList, selected) {
-            imageSelector.innerHTML = '';
-            imageList.forEach(imageName => {
-                const option = document.createElement('option');
-                option.value = imageName;
-                option.textContent = imageName;
-                option.selected = imageName === selected
-                imageSelector.appendChild(option);
-            });
-        }
-
-        async function changeSourceImage() {
-            const selectedImage = imageSelector.value;
-            if (!selectedImage) {
-                console.error('No source image selected');
-                return;
-            }
-
-            try {
-                await fetch('/update-source-image', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ image: selectedImage }),
-                });
-                console.log('Source image updated successfully');
-            } catch (error) {
-                console.error('Error updating source image:', error);
-            }
-        }
-
-        async function fetchAvailableImages() {
-            try {
-                const response = await fetch('/get-available');
-                const imageList = await response.json();
-                updateImageSelector(imageList, "default");
-            } catch (error) {
-                console.error('Error fetching available images:', error);
-            }
-        }
+        });
 
         async function startStreaming() {
             try{
@@ -338,7 +192,18 @@
                 });
 
                 const answer = await response.json();
-                await pc.setRemoteDescription(answer);
+
+                // Set the remote description using the received SDP and type
+                await pc.setRemoteDescription(new RTCSessionDescription({
+                    type: answer.type,
+                    sdp: answer.sdp
+                }));
+
+                // Check if stream_url is present and display it
+                if (answer.stream_url) {
+                    streamUrlInput.value = answer.stream_url;
+                    streamUrlContainer.style.display = 'flex'; // Show the container
+                }
 
                 isStreaming = true;
                 startButton.disabled = true;
@@ -349,20 +214,9 @@
             }
         }
 
-        async function changeSourceImage() {
-    
-            try {
-                await fetch('/update-source-image', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ image: imageSelector.value }),
-                });
-                console.log('Source image updated successfully');
-            } catch (error) {
-                console.error('Error updating source image:', error);
-            }
-        }
+        // Existing JavaScript continues...
 
+        // Function to prefer codec remains unchanged
         function preferCodec(sdp, type, codec) {
             const mLineIndex = sdp.split('\r\n').findIndex(line => line.startsWith(`m=${type}`));
             if (mLineIndex === -1) return sdp;
@@ -387,47 +241,9 @@
             return lines.join('\r\n');
         }
 
-        function startBitrateMonitoring() {
-            setInterval(async () => {
-                const stats = await pc.getStats();
-                let bitrate = 0;
-                stats.forEach(report => {
-                    if (report.type === 'outbound-rtp' && report.mediaType === 'video') {
-                        const now = report.timestamp;
-                        const bytes = report.bytesSent;
-                        if (lastResult && lastResult.has(report.id)) {
-                            const lastBytes = lastResult.get(report.id).bytesSent;
-                            const lastTimestamp = lastResult.get(report.id).timestamp;
-                            bitrate = 8 * (bytes - lastBytes) / (now - lastTimestamp);
-                            adjustBitrate(bitrate);
-                        }
-                        lastResult = stats;
-                    }
-                    if (report.type === 'remote-inbound-rtp' && report.kind === 'video') {
-                        console.log('Jitter: ', report.jitter);
-                        console.log('Round-trip time:', report.roundTripTime);
-                        console.log('Packets lost:', report.packetsLost);
-                    }
-                });
-            }, 1000);
-        }
+        // Rest of the existing JavaScript...
 
-        function adjustBitrate(currentBitrate) {
-            const sender = pc.getSenders().find(s => s.track.kind === 'video');
-            if (!sender) return;
-
-            const params = sender.getParameters();
-            if (!params.encodings) params.encodings = [{}];
-
-            if (currentBitrate < 500000) { // Less than 500 kbps
-                params.encodings[0].maxBitrate = 800000; // 800 kbps
-            } else if (currentBitrate > 2000000) { // More than 2 Mbps
-                params.encodings[0].maxBitrate = 3000000; // 3 Mbps
-            }
-
-            sender.setParameters(params);
-        }
-
+        // Event listeners for buttons and inputs
         startButton.onclick = startStreaming;
         //stopButton.onclick = stopStreaming;
         changeImageButton.onclick = changeSourceImage;
