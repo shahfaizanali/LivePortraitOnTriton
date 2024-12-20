@@ -106,7 +106,7 @@ class VideoTransformTrack(MediaStreamTrack):
             '-preset', 'p6',      # NVIDIA performance preset
             '-tune', 'hq',        # Use 'hq' (high quality) or 'll' (low latency)
             '-g', '30',           # GOP size
-            '-pix_fmt', 'yuv420p', # Output pixel format
+            # '-pix_fmt', 'yuv420p', # Output pixel format
             '-f', 'flv',
             rtmp_url
 
