@@ -104,11 +104,10 @@ class VideoTransformTrack(MediaStreamTrack):
             '-b:v', '2M',
             '-maxrate', '2M',
             '-bufsize', '1M',
-            '-preset', 'p2',
+            '-preset', 'p6',
             '-tune', '3',
             '-g', '30',
             '-f', 'flv',
-            '-vsync', '0',
             rtmp_url
         ], stdin=subprocess.PIPE)
 
