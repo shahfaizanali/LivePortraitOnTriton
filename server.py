@@ -31,8 +31,8 @@ logger = logging.getLogger(__name__)
 
 # STUN server configuration
 ICE_SERVERS = [
-    # RTCIceServer(urls="stun:stun.l.google.com:19302"),
-    # RTCIceServer(urls="stun:stun1.l.google.com:19302"),
+    RTCIceServer(urls="stun:stun.l.google.com:19302"),
+    RTCIceServer(urls="stun:stun1.l.google.com:19302"),
 ]
 
 rtc_configuration = RTCConfiguration(
