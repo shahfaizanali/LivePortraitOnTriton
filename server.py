@@ -96,14 +96,14 @@ class VideoTransformTrack(MediaStreamTrack):
             'ffmpeg',
             '-f', 'rawvideo',
             '-pix_fmt', 'rgb24',
-            '-s', '512x512',  # Must match the output frame size you're processing
+            '-s', '556x556',  # Must match the output frame size you're processing
             '-r', '15',       # Framerate
             '-i', '-',
             '-pix_fmt', 'yuv420p',
             '-c:v', 'libx264',
             '-b:v', '2M',
             '-maxrate', '2M',
-            '-bufsize', '1M',
+            '-bufsize', '4M',
             '-preset', 'ultrafast',
             '-tune', 'zerolatency',
             '-g', '60',
