@@ -281,8 +281,8 @@ async def offer(request):
             "sdp": pc.localDescription.sdp,
             "type": pc.localDescription.type,
             "user_id": user_id,
-            # "stream_url": rtmp_url,
-            "stream_url": viewer_url,
+            "stream_url": rtmp_url,
+            # "stream_url": viewer_url,
         })
     )
 
