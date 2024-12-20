@@ -84,8 +84,8 @@ class VideoTransformTrack(MediaStreamTrack):
         self.infer_times = []
         self.frame_ind = 0
         self.pipe = FasterLivePortraitPipeline(cfg=infer_cfg, is_animal=False)
-        # self.ffmpeg_process = None
-        self.ffmpeg_process = self.start_ffmpeg_process()
+        self.ffmpeg_process = None
+        
 
     def start_ffmpeg_process(self):
         # Create a personalized RTMP URL
@@ -105,8 +105,8 @@ class VideoTransformTrack(MediaStreamTrack):
             '-maxrate', '2M',
             '-bufsize', '1M',
             '-preset', 'p2',
-            '-tune', '11',
-            '-g', '60',
+            '-tune', '3',
+            '-g', '30',
             '-f', 'flv',
             '-vsync', '0',
             rtmp_url
@@ -140,7 +140,10 @@ class VideoTransformTrack(MediaStreamTrack):
         out_crop = cv2.resize(out_crop, (556, 556))
 
         # Write the processed frame to FFmpeg
-        if self.ffmpeg_process and self.ffmpeg_process.stdin:
+        if not self.ffmpeg_process:
+          self.ffmpeg_process = self.start_ffmpeg_process()
+
+        elif self.ffmpeg_process and self.ffmpeg_process.stdin:
             self.ffmpeg_process.stdin.write(out_crop.tobytes())
 
         # Return the processed frame to the WebRTC client as well (optional)
