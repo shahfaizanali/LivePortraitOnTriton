@@ -103,7 +103,7 @@ class VideoTransformTrack(MediaStreamTrack):
             '-c:v', 'libx264',
             '-b:v', '2M',
             '-maxrate', '2M',
-            '-bufsize', '1M',
+            '-bufsize', '4M',
             '-preset', 'ultrafast',
             '-tune', 'zerolatency',
             '-g', '60',
