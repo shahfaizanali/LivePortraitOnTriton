@@ -84,8 +84,8 @@ class VideoTransformTrack(MediaStreamTrack):
         self.infer_times = []
         self.frame_ind = 0
         self.pipe = FasterLivePortraitPipeline(cfg=infer_cfg, is_animal=False)
-        self.ffmpeg_process = None
-        # self.ffmpeg_process = self.start_ffmpeg_process()
+        # self.ffmpeg_process = None
+        self.ffmpeg_process = self.start_ffmpeg_process()
 
     def start_ffmpeg_process(self):
         # Create a personalized RTMP URL
@@ -96,14 +96,14 @@ class VideoTransformTrack(MediaStreamTrack):
             'ffmpeg',
             '-f', 'rawvideo',
             '-pix_fmt', 'rgb24',
-            '-s', '556x556',  # Must match the output frame size you're processing
+            '-s', '512x512',  # Must match the output frame size you're processing
             '-r', '15',       # Framerate
             '-i', '-',
             '-pix_fmt', 'yuv420p',
             '-c:v', 'libx264',
             '-b:v', '2M',
             '-maxrate', '2M',
-            '-bufsize', '4M',
+            '-bufsize', '1M',
             '-preset', 'ultrafast',
             '-tune', 'zerolatency',
             '-g', '60',
