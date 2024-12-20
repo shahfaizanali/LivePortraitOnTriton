@@ -140,7 +140,7 @@ class VideoTransformTrack(MediaStreamTrack):
 
         # # Write the processed frame to FFmpeg
         if self.ffmpeg_process and self.ffmpeg_process.stdin:
-            self.ffmpeg_process.stdin.write(frame.tobytes())
+            self.ffmpeg_process.stdin.write(img.tobytes())
 
         # # Return the processed frame to the WebRTC client as well (optional)
         # new_frame = VideoFrame.from_ndarray(out_crop, format="rgb24")
