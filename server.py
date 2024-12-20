@@ -1,13 +1,18 @@
+# Potential improvements summarized:
+# 1. Reduce logging frequency inside the recv() loop.
+# 2. Offload heavy CPU-bound pipeline processing to a separate thread with asyncio.to_thread().
+# 3. Consider reducing frame size or frame rate before running the pipeline.
+# 4. Ensure you only run the pipeline once per frame, and use MediaRelay to feed multiple viewers without reprocessing.
+# 5. Adjust pipeline complexity or enable GPU acceleration if available.
+
 import asyncio
 import json
 import logging
 import os
-import subprocess
 import time
 import uuid
 
 import cv2
-import ffmpeg
 import numpy as np
 from aiohttp import web
 from aiortc import (
@@ -35,9 +40,7 @@ ICE_SERVERS = [
     RTCIceServer(urls="stun:stun1.l.google.com:19302"),
 ]
 
-rtc_configuration = RTCConfiguration(
-    iceServers=ICE_SERVERS,
-)
+rtc_configuration = RTCConfiguration(iceServers=ICE_SERVERS)
 
 def create_image_map(images_dir='./images'):
     images_path = os.path.abspath(images_dir)
@@ -84,79 +87,68 @@ class VideoTransformTrack(MediaStreamTrack):
         self.infer_times = []
         self.frame_ind = 0
         self.pipe = FasterLivePortraitPipeline(cfg=infer_cfg, is_animal=False)
-        # self.ffmpeg_process = self.start_ffmpeg_process()
+        self.log_counter = 0  # for reduced logging frequency
 
-    def start_ffmpeg_process(self):
-        # Create a personalized RTMP URL
-        rtmp_url = f"rtmp://localhost:1935/live/{self.user_id}"
-
-        # Adjust these parameters as needed (frame size, framerate, bitrate, etc.)
-        return subprocess.Popen([
-            'ffmpeg',
-            '-f', 'rawvideo',
-            '-pix_fmt', 'rgb24',
-            '-s', '556x556',  # Must match the output frame size you're processing
-            '-r', '30',       # Framerate
-            '-i', '-',
-            '-pix_fmt', 'yuv420p',
-            '-c:v', 'libx264',
-            '-b:v', '2M',
-            '-maxrate', '2M',
-            '-bufsize', '4M',
-            '-preset', 'ultrafast',
-            '-tune', 'zerolatency',
-            '-g', '60',
-            '-f', 'flv',
-            rtmp_url
-        ], stdin=subprocess.PIPE)
+        # Consider reducing resolution or framerate if needed:
+        # self.target_size = (512, 512) # Example: smaller than 556x556 might be faster
 
     def update_source_image(self, file_key):
         self.source_image = image_map[file_key]
         self.initialized = False
 
+    async def process_frame(self, img, first_frame):
+        # Offload heavy pipeline processing to a thread to avoid blocking event loop
+        # Note: Ensure your pipeline code is thread-safe or does not use event loop operations.
+        def run_pipeline():
+            if not self.initialized:
+                self.pipe.prepare_source(self.source_image, realtime=True)
+                self.initialized = True
+            
+            # Possibly resize input frame before pipeline if needed for speed
+            # img = cv2.resize(img, self.target_size)  # If you want smaller resolution
+
+            dri_crop, out_crop, out_org = self.pipe.run(img, self.pipe.src_imgs[0], self.pipe.src_infos[0], first_frame=first_frame)
+            return out_crop
+
+        out_crop = await asyncio.to_thread(run_pipeline)
+        return out_crop
+
     async def recv(self):
         frame = await self.track.recv()
         img = frame.to_ndarray(format="rgb24")
 
-        if not self.initialized:
-            self.pipe.prepare_source(self.source_image, realtime=True)
-            self.initialized = True
-
         t0 = time.time()
         first_frame = (self.frame_ind == 0)
-        dri_crop, out_crop, out_org = self.pipe.run(img, self.pipe.src_imgs[0], self.pipe.src_infos[0], first_frame=first_frame)
         self.frame_ind += 1
+
+        # Process frame off the main thread
+        out_crop = await self.process_frame(img, first_frame)
         if out_crop is None:
-            logger.info(f"No face in driving frame: {self.frame_ind}")
-            # No output, just return the original frame
+            if self.frame_ind % 30 == 0:  # Log less frequently
+                logger.info(f"No face detected in driving frame: {self.frame_ind}")
             return frame
 
-        self.infer_times.append(time.time() - t0)
-        logger.info(time.time() - t0)
+        infer_time = time.time() - t0
+        self.infer_times.append(infer_time)
+        # Log only every 30 frames to reduce overhead
+        self.log_counter += 1
+        if self.log_counter % 30 == 0:
+            logger.info(f"Avg inference time (last 30 frames): {np.mean(self.infer_times[-30:]):.4f} s")
 
-        # Ensure out_crop is 556x556
+        # Ensure out_crop is required size
+        # If pipeline already outputs desired size, skip resize for performance
         out_crop = cv2.resize(out_crop, (556, 556))
 
-        # Write the processed frame to FFmpeg
-        # if self.ffmpeg_process and self.ffmpeg_process.stdin:
-        #     self.ffmpeg_process.stdin.write(out_crop.tobytes())
-
-        # Return the processed frame to the WebRTC client as well (optional)
         new_frame = VideoFrame.from_ndarray(out_crop, format="rgb24")
         new_frame.pts = frame.pts
         new_frame.time_base = frame.time_base
         return new_frame
 
     def handle_message(self, message):
-        # Handle datachannel messages if needed
         pass
 
     def stop(self):
-        logger.info("Stopping VideoTransformTrack and closing RTMP stream")
-        if self.ffmpeg_process:
-            self.ffmpeg_process.stdin.close()
-            self.ffmpeg_process.wait()
-            self.ffmpeg_process = None
+        logger.info("Stopping VideoTransformTrack")
         super().stop()
 
 relay = MediaRelay()
@@ -164,16 +156,6 @@ relay = MediaRelay()
 # pcs set is used for cleanup on shutdown
 pcs = set()
 
-# STREAMS dictionary to manage broadcaster and their viewers
-# {
-#   user_id: {
-#       "broadcaster_pc": PC of the broadcaster,
-#       "video_track": VideoTransformTrack instance,
-#       "viewers": {
-#           viewer_id: viewer_pc
-#       }
-#   }
-# }
 STREAMS = {}
 
 async def health(request):
@@ -192,13 +174,11 @@ async def offer(request):
     params = await request.json()
     offer = RTCSessionDescription(sdp=params["sdp"], type=params["type"])
 
-    # Generate a user_id for this session
     user_id = params.get("userId", str(uuid.uuid4()))
 
     pc = RTCPeerConnection(rtc_configuration)
     pcs.add(pc)
 
-    # Create entry in STREAMS for this broadcaster
     STREAMS[user_id] = {
         "broadcaster_pc": pc,
         "video_track": None,
@@ -209,29 +189,24 @@ async def offer(request):
 
     @pc.on("iceconnectionstatechange")
     async def on_iceconnectionstatechange():
-        logger.info(f"ICE connection state (broadcaster): {pc.iceConnectionState}")
         if pc.iceConnectionState == "failed":
             await pc.close()
             pcs.discard(pc)
             if local_video:
                 local_video.stop()
-            # Cleanup STREAMS entry
             if user_id in STREAMS:
-                # Close all viewers
                 for v_id, v_pc in STREAMS[user_id]["viewers"].items():
                     await v_pc.close()
                 del STREAMS[user_id]
 
     @pc.on("connectionstatechange")
     async def on_connectionstatechange():
-        logger.info(f"Connection state (broadcaster): {pc.connectionState}")
         if pc.connectionState in ["failed", "closed"]:
             logger.error("Connection failed or closed (broadcaster)")
             await pc.close()
             pcs.discard(pc)
             if local_video:
                 local_video.stop()
-            # Cleanup STREAMS
             if user_id in STREAMS:
                 for v_id, v_pc in STREAMS[user_id]["viewers"].items():
                     await v_pc.close()
@@ -240,7 +215,6 @@ async def offer(request):
     @pc.on("track")
     def on_track(track):
         nonlocal local_video
-        logger.info(f"Received track: {track.kind}")
         if track.kind == "video":
             local_video = VideoTransformTrack(relay.subscribe(track, buffered=False), user_id)
             pc.addTrack(local_video)
@@ -250,7 +224,6 @@ async def offer(request):
     def on_datachannel(channel):
         @channel.on("message")
         def on_message(message):
-            logger.info(f"Datachannel message: {message}")
             if isinstance(message, str):
                 data = json.loads(message)
                 for sender in pc.getSenders():
@@ -260,7 +233,6 @@ async def offer(request):
     await pc.setRemoteDescription(offer)
     answer = await pc.createAnswer()
 
-    # Prefer H264 if available
     for transceiver in pc.getTransceivers():
         if transceiver.kind == "video":
             codecs = RTCRtpSender.getCapabilities("video").codecs
@@ -269,7 +241,6 @@ async def offer(request):
 
     await pc.setLocalDescription(answer)
 
-    # Return the RTMP URL to the client so they know where to connect via OBS
     rtmp_url = f"rtmp://{request.host.split(':')[0]}:1935/live/{user_id}"
     viewer_url = f"https://{request.host.split(':')[0]}/stream?user_id={user_id}"
     logger.info(f"User {user_id} RTMP URL: {rtmp_url}")
@@ -285,15 +256,6 @@ async def offer(request):
     )
 
 async def viewer_offer(request):
-    """
-    Endpoint for a viewer to connect to an existing stream.
-    Expects JSON:
-    {
-      "user_id": "<broadcaster_user_id>",
-      "sdp": "<offer_sdp>",
-      "type": "offer"
-    }
-    """
     params = await request.json()
     target_user_id = params.get("user_id")
     if target_user_id not in STREAMS:
@@ -309,21 +271,17 @@ async def viewer_offer(request):
     viewer_pc = RTCPeerConnection(rtc_configuration)
     pcs.add(viewer_pc)
 
-    # Add viewer to STREAMS
     STREAMS[target_user_id]["viewers"][viewer_id] = viewer_pc
 
-    # Attach the processed video track to this viewer
     video_track = STREAMS[target_user_id]["video_track"]
     if video_track:
         viewer_pc.addTrack(video_track)
 
     @viewer_pc.on("iceconnectionstatechange")
     async def on_iceconnectionstatechange():
-        logger.info(f"Viewer {viewer_id} ICE state: {viewer_pc.iceConnectionState}")
         if viewer_pc.iceConnectionState in ["failed", "closed", "disconnected"]:
             await viewer_pc.close()
             pcs.discard(viewer_pc)
-            # Remove from STREAMS
             if target_user_id in STREAMS and viewer_id in STREAMS[target_user_id]["viewers"]:
                 del STREAMS[target_user_id]["viewers"][viewer_id]
 
@@ -342,14 +300,6 @@ async def viewer_offer(request):
     )
 
 async def viewer_ice(request):
-    """
-    Endpoint for viewer to send ICE candidates.
-    {
-      "user_id": "<broadcaster_user_id>",
-      "viewer_id": "<viewer_id>",
-      "candidate": {...}
-    }
-    """
     params = await request.json()
     target_user_id = params.get("user_id")
     viewer_id = params.get("viewer_id")
@@ -397,7 +347,6 @@ async def update_source_image(request):
     if not os.path.exists(image_map[image_key]):
         return web.Response(status=404, text="Source image not found")
 
-    # Update source image for all broadcaster video tracks
     for info in STREAMS.values():
         video_track = info.get("video_track")
         if video_track and isinstance(video_track, VideoTransformTrack):
@@ -440,10 +389,8 @@ if __name__ == "__main__":
     app.router.add_post("/update-source-image", update_source_image)
     app.router.add_get("/get-available", get_available_files)
 
-    # New endpoints for viewers
-    # The viewer sends their offer via /viewer_offer and receives an answer
+    # Viewer endpoints
     app.router.add_post("/viewer_offer", viewer_offer)
-    # The viewer sends ICE candidates via /viewer_ice
     app.router.add_post("/viewer_ice", viewer_ice)
 
     port = int(os.getenv("PORT", 8081))
