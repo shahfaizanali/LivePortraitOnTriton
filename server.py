@@ -85,7 +85,7 @@ class VideoTransformTrack(MediaStreamTrack):
         self.frame_ind = 0
         self.pipe = FasterLivePortraitPipeline(cfg=infer_cfg, is_animal=False)
         self.ffmpeg_process = None
-        self.ffmpeg_process = self.start_ffmpeg_process()
+        # self.ffmpeg_process = self.start_ffmpeg_process()
 
     def start_ffmpeg_process(self):
         # Create a personalized RTMP URL
@@ -281,8 +281,8 @@ async def offer(request):
             "sdp": pc.localDescription.sdp,
             "type": pc.localDescription.type,
             "user_id": user_id,
-            "stream_url": rtmp_url,
-            # "stream_url": viewer_url,
+            # "stream_url": rtmp_url,
+            "stream_url": viewer_url,
         })
     )
 
