@@ -96,8 +96,8 @@ class VideoTransformTrack(MediaStreamTrack):
             'ffmpeg',
             '-f', 'rawvideo',
             '-pix_fmt', 'rgb24',
-            '-s', '512x512',  # Must match the output frame size you're processing
-            '-r', '15',       # Framerate
+            '-s', '556x556',  # Must match the output frame size you're processing
+            '-r', '30',       # Framerate
             '-i', '-',
             '-pix_fmt', 'yuv420p',
             '-c:v', 'libx264',
