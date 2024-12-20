@@ -85,7 +85,7 @@ class VideoTransformTrack(MediaStreamTrack):
         self.frame_ind = 0
         self.pipe = FasterLivePortraitPipeline(cfg=infer_cfg, is_animal=False)
         self.ffmpeg_process = None
-        
+        # self.ffmpeg_process = self.start_ffmpeg_process()
 
     def start_ffmpeg_process(self):
         # Create a personalized RTMP URL
@@ -95,21 +95,20 @@ class VideoTransformTrack(MediaStreamTrack):
         return subprocess.Popen([
             'ffmpeg',
             '-f', 'rawvideo',
-            '-pix_fmt', 'rgb24',  # Input pixel format
-            '-s', '512x512',      # Input frame size
-            '-r', '15',           # Input framerate
-            '-i', '-',            # Input from stdin
-            '-c:v', 'h264_nvenc', # NVIDIA encoder
-            '-b:v', '2M',         # Bitrate
+            '-pix_fmt', 'rgb24',
+            '-s', '512x512',  # Must match the output frame size you're processing
+            '-r', '15',       # Framerate
+            '-i', '-',
+            '-pix_fmt', 'yuv420p',
+            '-c:v', 'libx264',
+            '-b:v', '2M',
             '-maxrate', '2M',
             '-bufsize', '1M',
-            '-preset', 'p6',      # NVIDIA performance preset
-            '-tune', 'hq',        # Use 'hq' (high quality) or 'll' (low latency)
-            '-g', '30',           # GOP size
-            # '-pix_fmt', 'yuv420p', # Output pixel format
+            '-preset', 'ultrafast',
+            '-tune', 'zerolatency',
+            '-g', '60',
             '-f', 'flv',
             rtmp_url
-
         ], stdin=subprocess.PIPE)
 
     def update_source_image(self, file_key):
@@ -140,10 +139,7 @@ class VideoTransformTrack(MediaStreamTrack):
         out_crop = cv2.resize(out_crop, (556, 556))
 
         # Write the processed frame to FFmpeg
-        if not self.ffmpeg_process:
-          self.ffmpeg_process = self.start_ffmpeg_process()
-
-        elif self.ffmpeg_process and self.ffmpeg_process.stdin:
+        if self.ffmpeg_process and self.ffmpeg_process.stdin:
             self.ffmpeg_process.stdin.write(out_crop.tobytes())
 
         # Return the processed frame to the WebRTC client as well (optional)
@@ -285,8 +281,8 @@ async def offer(request):
             "sdp": pc.localDescription.sdp,
             "type": pc.localDescription.type,
             "user_id": user_id,
-            "stream_url": rtmp_url,
-            # "stream_url": viewer_url,
+            # "stream_url": rtmp_url,
+            "stream_url": viewer_url,
         })
     )
 
