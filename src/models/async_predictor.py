@@ -20,20 +20,23 @@ class TritonPredictor:
         self.initialized = False
 
     async def initialize(self):
-        # Check if model is ready
-        if not await self.client.is_model_ready(self.model_name, self.model_version):
-            raise RuntimeError(f"Model {self.model_name} not ready on Triton server at {self.url}")
+        if not self.initialized:
+            # Check if model is ready
+            if not await self.client.is_model_ready(self.model_name, self.model_version):
+                raise RuntimeError(f"Model {self.model_name} not ready on Triton server at {self.url}")
 
-        # Get model metadata and config asynchronously
-        self.model_metadata = await self.client.get_model_metadata(self.model_name, self.model_version)
-        self.model_config = await self.client.get_model_config(self.model_name, self.model_version)
+            # Get model metadata and config asynchronously
+            self.model_metadata = await self.client.get_model_metadata(self.model_name, self.model_version)
+            self.model_config = await self.client.get_model_config(self.model_name, self.model_version)
 
-        # Parse input and output specs
-        for inp in self.model_metadata['inputs']:
-            self.inputs.append({"name": inp['name'], "dtype": inp['datatype'], "shape": inp['shape']})
+            # Parse input and output specs
+            for inp in self.model_metadata['inputs']:
+                self.inputs.append({"name": inp['name'], "dtype": inp['datatype'], "shape": inp['shape']})
 
-        for out in self.model_metadata['outputs']:
-            self.outputs.append({"name": out['name'], "dtype": out['datatype'], "shape": out['shape']})
+            for out in self.model_metadata['outputs']:
+                self.outputs.append({"name": out['name'], "dtype": out['datatype'], "shape": out['shape']})
+        else:
+            self.initialized = True
 
     def input_spec(self):
         specs = []
