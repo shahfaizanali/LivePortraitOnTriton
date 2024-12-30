@@ -93,6 +93,7 @@ class FasterLivePortraitPipeline:
         )
     
     async def prepare_source(self, source_path, **kwargs):
+        await self.model_dict["face_analysis"].intialize()
         print(f"process source:{source_path} >>>>>>>>>")
         try:
             if utils.is_image(source_path):
@@ -123,7 +124,6 @@ class FasterLivePortraitPipeline:
                 img_bgr = resize_to_limit(img_bgr, self.cfg.infer_params.source_max_dim,
                                           self.cfg.infer_params.source_division)
                 img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
-                print("asdasd")  
                 src_faces = await self.model_dict["face_analysis"].predict(img_bgr)
                 if len(src_faces) == 0:
                     print("No face detected in the this image.")
