@@ -21,6 +21,7 @@ class TritonPredictor:
 
     async def initialize(self):
         if not self.initialized:
+            self.initialized = True
             # Check if model is ready
             if not await self.client.is_model_ready(self.model_name, self.model_version):
                 raise RuntimeError(f"Model {self.model_name} not ready on Triton server at {self.url}")
@@ -35,8 +36,7 @@ class TritonPredictor:
 
             for out in self.model_metadata['outputs']:
                 self.outputs.append({"name": out['name'], "dtype": out['datatype'], "shape": out['shape']})
-        else:
-            self.initialized = True
+       
 
     def input_spec(self):
         specs = []
