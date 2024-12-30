@@ -2,7 +2,7 @@
 import numpy as np
 import cv2
 from insightface.app.common import Face
-from .new_predictor import get_predictor
+from .async_predictor import get_predictor
 from ..utils import face_align
 
 def sort_by_direction(faces, direction: str = 'large-small', face_center=None):
@@ -68,6 +68,9 @@ class FaceAnalysisModel:
         self.face_pose.input_spec()
         self.face_pose.output_spec()
 
+    async def initialize(self): 
+        await self.face_det.initialize()
+        await self.face_pose.initialize()
         # Set up model-related configs
         self.input_mean = 127.5
         self.input_std = 128.0
@@ -138,7 +141,7 @@ class FaceAnalysisModel:
 
         return keep
 
-    def detect_face(self, img):
+    async def detect_face(self, img):
         # Preprocess
         im_ratio = float(img.shape[0]) / img.shape[1]
         model_ratio = float(self.input_size[1]) / self.input_size[0]
@@ -161,7 +164,7 @@ class FaceAnalysisModel:
 
         inp_name = self.face_det.inputs[0]["name"]
         feed_dict = {inp_name: det_img}
-        preds_dict = self.face_det.predict(feed_dict)
+        preds_dict = await self.face_det.predict(feed_dict)
         # Extract outputs
         # Adjust the output keys if your model uses different output names
         faces_det = [preds_dict[k] for k in self.output_keys]
@@ -222,7 +225,7 @@ class FaceAnalysisModel:
             kpss = None
         return det, kpss
 
-    def estimate_face_pose(self, img, face):
+    async def estimate_face_pose(self, img, face):
         bbox = face.bbox
         w, h = (bbox[2] - bbox[0]), (bbox[3] - bbox[1])
         center = (bbox[2] + bbox[0]) / 2, (bbox[3] + bbox[1]) / 2
@@ -238,7 +241,7 @@ class FaceAnalysisModel:
 
         inp_name = self.face_pose.inputs[0]["name"]
         feed_dict = {inp_name: aimg}
-        preds_dict = self.face_pose.predict(feed_dict)
+        preds_dict = await self.face_pose.predict(feed_dict)
         pred = preds_dict[self.face_pose.outputs[0]["name"]]
         pred = pred.copy()
         
@@ -254,8 +257,8 @@ class FaceAnalysisModel:
         face["landmark"] = pred
         return pred
 
-    def predict(self, img):
-        bboxes, kpss = self.detect_face(img)
+    async def predict(self, img):
+        bboxes, kpss = await self.detect_face(img)
         if bboxes.shape[0] == 0:
             return []
         ret = []
@@ -266,7 +269,7 @@ class FaceAnalysisModel:
             if self.use_kps and kpss is not None:
                 kps = kpss[i]
             face = Face(bbox=bbox, kps=kps, det_score=det_score)
-            self.estimate_face_pose(img, face)
+            await self.estimate_face_pose(img, face)
             ret.append(face)
         ret = sort_by_direction(ret, 'large-small', None)
         outs = [x.landmark for x in ret]

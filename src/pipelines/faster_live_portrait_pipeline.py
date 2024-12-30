@@ -92,7 +92,7 @@ class FasterLivePortraitPipeline:
             functools.partial(self.prepare_source, source_path, **kwargs)
         )
     
-    def prepare_source(self, source_path, **kwargs):
+    async def prepare_source(self, source_path, **kwargs):
         print(f"process source:{source_path} >>>>>>>>>")
         try:
             if utils.is_image(source_path):
@@ -124,7 +124,7 @@ class FasterLivePortraitPipeline:
                                           self.cfg.infer_params.source_division)
                 img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
                 print("asdasd")  
-                src_faces = self.model_dict["face_analysis"].predict(img_bgr)
+                src_faces = await self.model_dict["face_analysis"].predict(img_bgr)
                 if len(src_faces) == 0:
                     print("No face detected in the this image.")
                     continue
@@ -137,7 +137,7 @@ class FasterLivePortraitPipeline:
                 crop_infos = []
                 for i in range(len(src_faces)):
                     lmk = src_faces[i]
-                    lmk = self.model_dict["landmark"].predict(img_rgb, lmk)
+                    lmk = await self.model_dict["landmark"].predict(img_rgb, lmk)
                     ret_dct = crop_image(
                         img_rgb,  # ndarray
                         lmk,  # 106x2 or Nx2
@@ -158,7 +158,7 @@ class FasterLivePortraitPipeline:
                 for i, crop_info in enumerate(crop_infos):
                     source_lmk = crop_info['lmk_crop']
                     img_crop_256x256 = crop_info['img_crop_256x256']
-                    pitch, yaw, roll, t, exp, scale, kp = self.model_dict["motion_extractor"].predict(
+                    pitch, yaw, roll, t, exp, scale, kp = await self.model_dict["motion_extractor"].predict(
                         img_crop_256x256)
                     x_s_info = {
                         "pitch": pitch,
@@ -172,7 +172,7 @@ class FasterLivePortraitPipeline:
                     src_infos[i].append(copy.deepcopy(x_s_info))
                     x_c_s = kp
                     R_s = get_rotation_matrix(pitch, yaw, roll)
-                    f_s = self.model_dict["app_feat_extractor"].predict(img_crop_256x256)
+                    f_s = await self.model_dict["app_feat_extractor"].predict(img_crop_256x256)
                     x_s = transform_keypoint(pitch, yaw, roll, t, exp, scale, kp)
                     src_infos[i].extend([source_lmk.copy(), R_s.copy(), f_s.copy(), x_s.copy(), x_c_s.copy()])
 
@@ -187,7 +187,7 @@ class FasterLivePortraitPipeline:
                             src_infos[i].append(None)
                             src_infos[i].append(flag_lip_zero)
                         else:
-                            lip_delta_before_animation = self.model_dict['stitching_lip_retarget'].predict(
+                            lip_delta_before_animation = await self.model_dict['stitching_lip_retarget'].predict(
                                 concat_feat(x_s, combined_lip_ratio_tensor_before_animation))
                             src_infos[i].append(lip_delta_before_animation.copy())
                             src_infos[i].append(flag_lip_zero)
@@ -214,9 +214,9 @@ class FasterLivePortraitPipeline:
             traceback.print_exc()
             return False
 
-    def retarget_eye(self, kp_source, eye_close_ratio):
+    async def retarget_eye(self, kp_source, eye_close_ratio):
         feat_eye = concat_feat(kp_source, eye_close_ratio)
-        delta = self.model_dict['stitching_eye_retarget'].predict(feat_eye)
+        delta = await self.model_dict['stitching_eye_retarget'].predict(feat_eye)
         return delta
 
     def retarget_lip(self, kp_source, lip_close_ratio):
@@ -248,7 +248,7 @@ class FasterLivePortraitPipeline:
             functools.partial(self.run, image, img_src, src_info, **kwargs)
         )
     
-    def run(self, image, img_src, src_info, **kwargs):
+    async def run(self, image, img_src, src_info, **kwargs):
         img_bgr = image
         img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
         I_p_pstbk = torch.from_numpy(img_src).to(self.device).float()
@@ -256,15 +256,15 @@ class FasterLivePortraitPipeline:
 
         if self.cfg.infer_params.flag_crop_driving_video:
             if self.src_lmk_pre is None:
-                src_face = self.model_dict["face_analysis"].predict(img_bgr)
+                src_face = await self.model_dict["face_analysis"].predict(img_bgr)
                 if len(src_face) == 0:
                     self.src_lmk_pre = None
                     return None, None, None
                 lmk = src_face[0]
-                lmk = self.model_dict["landmark"].predict(img_rgb, lmk)
+                lmk = await self.model_dict["landmark"].predict(img_rgb, lmk)
                 self.src_lmk_pre = lmk.copy()
             else:
-                lmk = self.model_dict["landmark"].predict(img_rgb, self.src_lmk_pre)
+                lmk = await self.model_dict["landmark"].predict(img_rgb, self.src_lmk_pre)
                 self.src_lmk_pre = lmk.copy()
 
             ret_bbox = parse_bbox_from_landmark(
@@ -292,22 +292,22 @@ class FasterLivePortraitPipeline:
             img_crop = cv2.resize(img_crop, (256, 256))
         else:
             if self.src_lmk_pre is None:
-                src_face = self.model_dict["face_analysis"].predict(img_bgr)
+                src_face = await self.model_dict["face_analysis"].predict(img_bgr)
                 if len(src_face) == 0:
                     self.src_lmk_pre = None
                     return None, None, None
                 lmk = src_face[0]
-                lmk = self.model_dict["landmark"].predict(img_rgb, lmk)
+                lmk = await self.model_dict["landmark"].predict(img_rgb, lmk)
                 self.src_lmk_pre = lmk.copy()
             else:
-                lmk = self.model_dict["landmark"].predict(img_rgb, self.src_lmk_pre)
+                lmk = await self.model_dict["landmark"].predict(img_rgb, self.src_lmk_pre)
                 self.src_lmk_pre = lmk.copy()
             lmk_crop = lmk.copy()
             img_crop = cv2.resize(img_rgb, (256, 256))
 
         input_eye_ratio = calc_eye_close_ratio(lmk_crop[None])
         input_lip_ratio = calc_lip_close_ratio(lmk_crop[None])
-        pitch, yaw, roll, t, exp, scale, kp = self.model_dict["motion_extractor"].predict(img_crop)
+        pitch, yaw, roll, t, exp, scale, kp = await self.model_dict["motion_extractor"].predict(img_crop)
         x_d_i_info = {
             "pitch": pitch,
             "yaw": yaw,
@@ -378,7 +378,7 @@ class FasterLivePortraitPipeline:
                 if self.cfg.infer_params.flag_eye_retargeting:
                     c_d_eyes_i = input_eye_ratio
                     combined_eye_ratio_tensor = self.calc_combined_eye_ratio(c_d_eyes_i, source_lmk)
-                    eyes_delta = self.retarget_eye(x_s, combined_eye_ratio_tensor)
+                    eyes_delta = await self.retarget_eye(x_s, combined_eye_ratio_tensor)
                 if self.cfg.infer_params.flag_lip_retargeting:
                     c_d_lip_i = input_lip_ratio
                     combined_lip_ratio_tensor = self.calc_combined_lip_ratio(c_d_lip_i, source_lmk)

@@ -5,7 +5,7 @@
 # @FileName: stitching_model.py
 
 from .new_base_model import BaseModel
-from .new_predictor import get_predictor
+from .async_predictor import get_predictor
 import numpy as np
 
 class StitchingModel(BaseModel):
@@ -17,9 +17,9 @@ class StitchingModel(BaseModel):
         super(StitchingModel, self).__init__(**kwargs)
         model_name = kwargs.get("model_name", "stitching")
         self.predictor = get_predictor(model_name=model_name)
-        if self.predictor is not None:
-            self.input_shapes = self.predictor.input_spec()
-            self.output_shapes = self.predictor.output_spec()
+        # if self.predictor is not None:
+        #     self.input_shapes = self.predictor.input_spec()
+        #     self.output_shapes = self.predictor.output_spec()
         
 
     def input_process(self, *data):
@@ -30,7 +30,8 @@ class StitchingModel(BaseModel):
         # Assuming a single output from the model
         return data[0]
 
-    def predict(self, *data):
+    async def predict(self, *data):
+        await self.predictor.initialize()
         inp = self.input_process(*data)
 
         # Create feed_dict for Triton

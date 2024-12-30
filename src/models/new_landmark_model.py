@@ -5,7 +5,7 @@
 # @FileName: landmark_model.py
 
 from .new_base_model import BaseModel
-from .new_predictor import get_predictor
+from .async_predictor import get_predictor
 import cv2
 import numpy as np
 from src.utils.crop import crop_image, _transform_pts
@@ -20,9 +20,9 @@ class LandmarkModel(BaseModel):
         super(LandmarkModel, self).__init__(**kwargs)
         self.dsize = 224
         self.predictor = get_predictor(model_name="landmark")
-        if self.predictor is not None:
-            self.input_shapes = self.predictor.input_spec()
-            self.output_shapes = self.predictor.output_spec()
+        # if self.predictor is not None:
+        #     self.input_shapes = self.predictor.input_spec()
+        #     self.output_shapes = self.predictor.output_spec()
         # Assume self.predictor is already a TritonPredictor instance
         # configured in the parent BaseModel or initialization code.
 
@@ -59,7 +59,8 @@ class LandmarkModel(BaseModel):
         lmk = _transform_pts(lmk, M=crop_dct['M_c2o'])
         return lmk
 
-    def predict(self, *data):
+    async def predict(self, *data):
+        await self.predictor.initialize()
         # Prepare input
         inp, crop_dct = self.input_process(*data)
 
@@ -70,7 +71,7 @@ class LandmarkModel(BaseModel):
         feed_dict[inp_meta['name']] = inp.astype(np.float32)
 
         # Inference call to Triton
-        preds_dict = self.predictor.predict(feed_dict)
+        preds_dict = await self.predictor.predict(feed_dict)
 
         # Gather outputs in the order they appear in self.predictor.outputs
         outs = []

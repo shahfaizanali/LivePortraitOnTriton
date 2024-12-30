@@ -6,7 +6,7 @@
 
 import numpy as np
 from .new_base_model import BaseModel
-from .new_predictor import get_predictor
+from .async_predictor import get_predictor
 
 def headpose_pred_to_degree(pred):
     if pred.ndim > 1 and pred.shape[1] == 66:
@@ -25,9 +25,9 @@ class MotionExtractorModel(BaseModel):
         super(MotionExtractorModel, self).__init__(**kwargs)
         self.flag_refine_info = kwargs.get("flag_refine_info", True)
         self.predictor = get_predictor(model_name="motion_extractor")
-        if self.predictor is not None:
-            self.input_shapes = self.predictor.input_spec()
-            self.output_shapes = self.predictor.output_spec()
+        # if self.predictor is not None:
+        #     self.input_shapes = self.predictor.input_spec()
+        #     self.output_shapes = self.predictor.output_spec()
 
     def input_process(self, *data):
         img = data[0].astype(np.float32)
@@ -47,7 +47,8 @@ class MotionExtractorModel(BaseModel):
             exp = exp.reshape(bs, -1, 3)  # BxNx3
         return pitch, yaw, roll, t, exp, scale, kp
 
-    def predict(self, *data):
+    async def predict(self, *data):
+        await self.predictor.initialize()
         # Preprocess input
         inp = self.input_process(*data)
 
@@ -57,7 +58,7 @@ class MotionExtractorModel(BaseModel):
         feed_dict[inp_meta['name']] = inp.astype(np.float32)
 
         # Inference call to Triton
-        preds_dict = self.predictor.predict(feed_dict)
+        preds_dict = await self.predictor.predict(feed_dict)
 
         # Gather outputs
         outs = []

@@ -6,7 +6,7 @@
 
 import numpy as np
 from .new_base_model import BaseModel
-from .new_predictor import get_predictor
+from .async_predictor import get_predictor
 
 class AppearanceFeatureExtractorModel(BaseModel):
     """
@@ -16,9 +16,9 @@ class AppearanceFeatureExtractorModel(BaseModel):
     def __init__(self, **kwargs):
         super(AppearanceFeatureExtractorModel, self).__init__(**kwargs)
         self.predictor = get_predictor(model_name="appearance_feature_extractor")
-        if self.predictor is not None:
-            self.input_shapes = self.predictor.input_spec()
-            self.output_shapes = self.predictor.output_spec()
+        # if self.predictor is not None:
+        #     self.input_shapes = self.predictor.input_spec()
+        #     self.output_shapes = self.predictor.output_spec()
 
     def input_process(self, *data):
         img = data[0].astype(np.float32) / 255.0
@@ -29,14 +29,15 @@ class AppearanceFeatureExtractorModel(BaseModel):
         # Assuming a single output from the model
         return data[0]
 
-    def predict(self, *data):
+    async def predict(self, *data):
+        await self.predictor.initialize()
         inp = self.input_process(*data)
         # Create feed_dict for Triton
         feed_dict = {}
         inp_meta = self.predictor.inputs[0]
         feed_dict[inp_meta['name']] = inp.astype(np.float32)
 
-        preds_dict = self.predictor.predict(feed_dict)
+        preds_dict = await self.predictor.predict(feed_dict)
 
         # Gather outputs
         outs = []

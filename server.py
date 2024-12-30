@@ -120,7 +120,7 @@ class VideoTransformTrack(MediaStreamTrack):
         img = frame.to_ndarray(format="rgb24")
 
         if not self.initialized:
-            await self.pipe.prepare_source_async(self.source_image, realtime=True)
+            await self.pipe.prepare_source(self.source_image, realtime=True)
             self.initialized = True
 
         t0 = time.time()
