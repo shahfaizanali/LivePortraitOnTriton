@@ -5,14 +5,14 @@
 # @FileName: faster_live_portrait_pipeline.py
 
 import copy
-import pdb
-import time
 import traceback
-from PIL import Image
 import cv2
 from tqdm import tqdm
 import numpy as np
 import torch
+import asyncio
+import functools
+import concurrent.futures
 
 from .. import models
 from ..utils.crop import crop_image, parse_bbox_from_landmark, crop_image_by_bbox, paste_back, paste_back_pytorch
@@ -20,6 +20,7 @@ from ..utils.utils import resize_to_limit, prepare_paste_back, get_rotation_matr
     calc_eye_close_ratio, transform_keypoint, concat_feat
 from src.utils import utils
 
+_executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
 
 class FasterLivePortraitPipeline:
     def __init__(self, cfg, **kwargs):
@@ -80,6 +81,17 @@ class FasterLivePortraitPipeline:
         combined_lip_ratio_tensor = np.concatenate([c_s_lip, c_d_lip_i], axis=1)
         return combined_lip_ratio_tensor
 
+    async def prepare_source_async(self, source_path, **kwargs):
+        """
+        Wrap the synchronous prepare_source in an async method
+        by running it in a thread pool.
+        """
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(
+            _executor, 
+            functools.partial(self.prepare_source, source_path, **kwargs)
+        )
+    
     def prepare_source(self, source_path, **kwargs):
         print(f"process source:{source_path} >>>>>>>>>")
         try:
@@ -225,6 +237,17 @@ class FasterLivePortraitPipeline:
 
         return kp_driving_new
 
+    async def run_async(self, image, img_src, src_info, **kwargs):
+        """
+        Wrap the synchronous run method in an async method
+        by running it in a thread pool.
+        """
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(
+            _executor,
+            functools.partial(self.run, image, img_src, src_info, **kwargs)
+        )
+    
     def run(self, image, img_src, src_info, **kwargs):
         img_bgr = image
         img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)

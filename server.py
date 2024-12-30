@@ -83,7 +83,7 @@ class VideoTransformTrack(MediaStreamTrack):
         self.initialized = False
         self.infer_times = []
         self.frame_ind = 0
-        # self.pipe = FasterLivePortraitPipeline(cfg=infer_cfg, is_animal=False)
+        self.pipe = FasterLivePortraitPipeline(cfg=infer_cfg, is_animal=False)
         # self.ffmpeg_process = None
         self.ffmpeg_process = self.start_ffmpeg_process()
 
@@ -119,18 +119,18 @@ class VideoTransformTrack(MediaStreamTrack):
         frame = await self.track.recv()
         img = frame.to_ndarray(format="rgb24")
 
-        # if not self.initialized:
-        #     self.pipe.prepare_source(self.source_image, realtime=True)
-        #     self.initialized = True
+        if not self.initialized:
+            await self.pipe.prepare_source_async(self.source_image, realtime=True)
+            self.initialized = True
 
-        # t0 = time.time()
-        # first_frame = (self.frame_ind == 0)
-        # dri_crop, out_crop, out_org = self.pipe.run(img, self.pipe.src_imgs[0], self.pipe.src_infos[0], first_frame=first_frame)
-        # self.frame_ind += 1
-        # if out_crop is None:
-        #     logger.info(f"No face in driving frame: {self.frame_ind}")
-        #     # No output, just return the original frame
-        #     return frame
+        t0 = time.time()
+        first_frame = (self.frame_ind == 0)
+        dri_crop, out_crop, out_org = await self.pipe.run_async(img, self.pipe.src_imgs[0], self.pipe.src_infos[0], first_frame=first_frame)
+        self.frame_ind += 1
+        if out_crop is None:
+            logger.info(f"No face in driving frame: {self.frame_ind}")
+            # No output, just return the original frame
+            return frame
 
         # self.infer_times.append(time.time() - t0)
         # logger.info(time.time() - t0)
@@ -139,14 +139,14 @@ class VideoTransformTrack(MediaStreamTrack):
         # out_crop = cv2.resize(out_crop, (556, 556))
 
         # # Write the processed frame to FFmpeg
-        if self.ffmpeg_process and self.ffmpeg_process.stdin:
-            self.ffmpeg_process.stdin.write(img.tobytes())
+        # if self.ffmpeg_process and self.ffmpeg_process.stdin:
+        #     self.ffmpeg_process.stdin.write(img.tobytes())
 
         # # Return the processed frame to the WebRTC client as well (optional)
-        # new_frame = VideoFrame.from_ndarray(out_crop, format="rgb24")
-        # new_frame.pts = frame.pts
-        # new_frame.time_base = frame.time_base
-        return frame
+        new_frame = VideoFrame.from_ndarray(out_crop, format="rgb24")
+        new_frame.pts = frame.pts
+        new_frame.time_base = frame.time_base
+        return new_frame
 
     def handle_message(self, message):
         # Handle datachannel messages if needed
