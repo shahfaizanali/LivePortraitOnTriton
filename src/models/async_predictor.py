@@ -52,9 +52,9 @@ class TritonPredictor:
         return specs
 
     async def predict(self, feed_dict):
-        if not self.initialized:
-            await self.initialize()
-            self.initialized = True
+        # if not self.initialized:
+        #     await self.initialize()
+        #     self.initialized = True
         # feed_dict: {input_name: np_array}
         triton_inputs = []
         for inp_meta in self.inputs:
