@@ -93,7 +93,7 @@ class FasterLivePortraitPipeline:
         )
     
     async def prepare_source(self, source_path, **kwargs):
-        await self.model_dict["face_analysis"].intialize()
+        await self.model_dict["face_analysis"].initialize()
         print(f"process source:{source_path} >>>>>>>>>")
         try:
             if utils.is_image(source_path):
