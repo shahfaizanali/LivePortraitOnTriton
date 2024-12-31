@@ -140,8 +140,8 @@ class VideoTransformTrack(MediaStreamTrack):
         # out_crop = cv2.resize(out_crop, (556, 556))
 
         # # Write the processed frame to FFmpeg
-        # if self.ffmpeg_process and self.ffmpeg_process.stdin:
-        #     self.ffmpeg_process.stdin.write(img.tobytes())
+        if self.ffmpeg_process and self.ffmpeg_process.stdin:
+            self.ffmpeg_process.stdin.write(out_crop.tobytes())
 
         # # Return the processed frame to the WebRTC client as well (optional)
         new_frame = VideoFrame.from_ndarray(out_crop, format="rgb24")
