@@ -222,16 +222,16 @@ class FasterLivePortraitPipeline:
         delta = await self.model_dict['stitching_eye_retarget'].predict(feat_eye)
         return delta
 
-    def retarget_lip(self, kp_source, lip_close_ratio):
+    async def retarget_lip(self, kp_source, lip_close_ratio):
         feat_lip = concat_feat(kp_source, lip_close_ratio)
-        delta = self.model_dict['stitching_lip_retarget'].predict(feat_lip)
+        delta = await self.model_dict['stitching_lip_retarget'].predict(feat_lip)
         return delta
 
-    def stitching(self, kp_source, kp_driving):
+    async def stitching(self, kp_source, kp_driving):
         bs, num_kp = kp_source.shape[:2]
         kp_driving_new = kp_driving.copy()
 
-        delta = self.model_dict['stitching'].predict(concat_feat(kp_source, kp_driving_new))
+        delta = await self.model_dict['stitching'].predict(concat_feat(kp_source, kp_driving_new))
         delta_exp = delta[..., :3 * num_kp].reshape(bs, num_kp, 3)
         delta_tx_ty = delta[..., 3 * num_kp:3 * num_kp + 2].reshape(bs, 1, 2)
 
@@ -372,10 +372,10 @@ class FasterLivePortraitPipeline:
                     x_d_i_new += lip_delta_before_animation.reshape(-1, x_s.shape[1], 3)
             elif self.cfg.infer_params.flag_stitching and not self.cfg.infer_params.flag_eye_retargeting and not self.cfg.infer_params.flag_lip_retargeting:
                 if flag_lip_zero:
-                    x_d_i_new = self.stitching(x_s, x_d_i_new) + lip_delta_before_animation.reshape(
+                    x_d_i_new = await self.stitching(x_s, x_d_i_new) + lip_delta_before_animation.reshape(
                         -1, x_s.shape[1], 3)
                 else:
-                    x_d_i_new = self.stitching(x_s, x_d_i_new)
+                    x_d_i_new = await self.stitching(x_s, x_d_i_new)
             else:
                 eyes_delta, lip_delta = None, None
                 if self.cfg.infer_params.flag_eye_retargeting:
@@ -385,7 +385,7 @@ class FasterLivePortraitPipeline:
                 if self.cfg.infer_params.flag_lip_retargeting:
                     c_d_lip_i = input_lip_ratio
                     combined_lip_ratio_tensor = self.calc_combined_lip_ratio(c_d_lip_i, source_lmk)
-                    lip_delta = self.retarget_lip(x_s, combined_lip_ratio_tensor)
+                    lip_delta = await self.retarget_lip(x_s, combined_lip_ratio_tensor)
 
                 if self.cfg.infer_params.flag_relative_motion:
                     x_d_i_new = x_s + \
@@ -397,7 +397,7 @@ class FasterLivePortraitPipeline:
                                 (lip_delta.reshape(-1, x_s.shape[1], 3) if lip_delta is not None else 0)
 
                 if self.cfg.infer_params.flag_stitching:
-                    x_d_i_new = self.stitching(x_s, x_d_i_new)
+                    x_d_i_new = await self.stitching(x_s, x_d_i_new)
 
             x_d_i_new = x_s + (x_d_i_new - x_s) * self.cfg.infer_params.driving_multiplier
             out_crop = self.model_dict["warping_spade"].predict(f_s, x_s, x_d_i_new)
