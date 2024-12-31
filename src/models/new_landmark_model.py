@@ -25,6 +25,8 @@ class LandmarkModel(BaseModel):
         #     self.output_shapes = self.predictor.output_spec()
         # Assume self.predictor is already a TritonPredictor instance
         # configured in the parent BaseModel or initialization code.
+    async def initialize(self):
+        await self.predictor.initialize() 
 
     def input_process(self, *data):
         if len(data) > 1:
@@ -60,7 +62,6 @@ class LandmarkModel(BaseModel):
         return lmk
 
     async def predict(self, *data):
-        await self.predictor.initialize()
         # Prepare input
         inp, crop_dct = self.input_process(*data)
 

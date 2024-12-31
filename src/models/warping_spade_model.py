@@ -19,6 +19,9 @@ class WarpingSpadeModel(BaseModel):
     def __init__(self, **kwargs):
         super(WarpingSpadeModel, self).__init__(**kwargs)
 
+    async def initialize(self):
+        return None
+
     def input_process(self, *data):
         feature_3d, kp_source, kp_driving = data
         return feature_3d, kp_driving, kp_source

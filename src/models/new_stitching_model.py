@@ -21,7 +21,9 @@ class StitchingModel(BaseModel):
         #     self.input_shapes = self.predictor.input_spec()
         #     self.output_shapes = self.predictor.output_spec()
         
-
+    async def initialize(self):
+        await self.predictor.initialize()
+        
     def input_process(self, *data):
         # Assuming data[0] is a numpy array input
         return data[0]

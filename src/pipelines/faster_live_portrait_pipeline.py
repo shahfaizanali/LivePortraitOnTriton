@@ -41,6 +41,10 @@ class FasterLivePortraitPipeline:
             del self.model_dict[key]
         self.model_dict = {}
 
+    async def initialize(self):
+        for model_name in self.cfg.models:
+            await self.model_dict[model_name].initialize()
+
     def init_models(self, **kwargs):
         print("load Human Model >>>")
         self.is_animal = False
@@ -93,7 +97,6 @@ class FasterLivePortraitPipeline:
         )
     
     async def prepare_source(self, source_path, **kwargs):
-        await self.model_dict["face_analysis"].initialize()
         print(f"process source:{source_path} >>>>>>>>>")
         try:
             if utils.is_image(source_path):

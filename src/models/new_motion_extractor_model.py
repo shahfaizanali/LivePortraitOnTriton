@@ -29,6 +29,9 @@ class MotionExtractorModel(BaseModel):
         #     self.input_shapes = self.predictor.input_spec()
         #     self.output_shapes = self.predictor.output_spec()
 
+    async def initialize(self):
+        await self.predictor.initialize()
+
     def input_process(self, *data):
         img = data[0].astype(np.float32)
         img /= 255.0
@@ -48,7 +51,6 @@ class MotionExtractorModel(BaseModel):
         return pitch, yaw, roll, t, exp, scale, kp
 
     async def predict(self, *data):
-        await self.predictor.initialize()
         # Preprocess input
         inp = self.input_process(*data)
 

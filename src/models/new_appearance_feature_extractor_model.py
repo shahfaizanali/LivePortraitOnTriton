@@ -20,6 +20,9 @@ class AppearanceFeatureExtractorModel(BaseModel):
         #     self.input_shapes = self.predictor.input_spec()
         #     self.output_shapes = self.predictor.output_spec()
 
+    async def initialize(self):
+        await self.predictor.initialize()
+
     def input_process(self, *data):
         img = data[0].astype(np.float32) / 255.0
         img = np.transpose(img, (2, 0, 1))  # HWC to CHW
@@ -30,7 +33,6 @@ class AppearanceFeatureExtractorModel(BaseModel):
         return data[0]
 
     async def predict(self, *data):
-        await self.predictor.initialize()
         inp = self.input_process(*data)
         # Create feed_dict for Triton
         feed_dict = {}
