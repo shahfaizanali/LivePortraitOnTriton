@@ -23,7 +23,7 @@ class StitchingModel(BaseModel):
         
     async def initialize(self):
         await self.predictor.initialize()
-        
+
     def input_process(self, *data):
         # Assuming data[0] is a numpy array input
         return data[0]
@@ -33,7 +33,6 @@ class StitchingModel(BaseModel):
         return data[0]
 
     async def predict(self, *data):
-        await self.predictor.initialize()
         inp = self.input_process(*data)
 
         # Create feed_dict for Triton
@@ -41,7 +40,7 @@ class StitchingModel(BaseModel):
         inp_meta = self.predictor.inputs[0]  # Assuming single input
         feed_dict[inp_meta['name']] = inp.astype(np.float32)
 
-        preds_dict = self.predictor.predict(feed_dict)
+        preds_dict = await self.predictor.predict(feed_dict)
 
         # Gather outputs
         outs = []
