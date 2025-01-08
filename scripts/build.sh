@@ -11,6 +11,10 @@ git pull
 
 docker build -t live-portrait:triton .
 
+docker tag live-portrait:triton hypelaunchdev/live-portrait:triton
+
+docker push hypelaunchdev/live-portrait:triton
+
 docker ps -a --filter "name=live-triton" --format "{{.Names}}" | xargs -r -n 1 docker stop
 docker ps -a --filter "name=live-triton" --format "{{.Names}}" | xargs -r -n 1 docker rm
 
