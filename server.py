@@ -197,7 +197,7 @@ async def offer(request):
     params = await request.json()
     offer = RTCSessionDescription(sdp=params["sdp"], type=params["type"])
     avatar_url = params["avatar_url"]
-    user_id = params["user_id"]
+    user_id = "random"
     source_image = await download_file(avatar_url)
     pc = RTCPeerConnection(rtc_configuration)
     pcs.add(pc)
