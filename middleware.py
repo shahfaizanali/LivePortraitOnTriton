@@ -3,7 +3,7 @@ from aiohttp import web
 from db import get_user_by_id
 import os
 
-JWT_SECRET = os.getenv("JWT_SECRET", "rav.ai")
+JWT_SECRET = os.getenv("JWT_SECRET", "secretprovid")
 
 @web.middleware
 async def is_authenticated_middleware(request, handler):
