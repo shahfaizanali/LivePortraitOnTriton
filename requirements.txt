@@ -16,3 +16,5 @@ opencv-python-headless
 onnxruntime-gpu
 lapx
 tritonclient[all]
+PyJWT
+pymongo

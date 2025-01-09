@@ -24,6 +24,8 @@ from omegaconf import OmegaConf
 
 from src.pipelines.faster_live_portrait_pipeline import FasterLivePortraitPipeline
 from src.utils.utils import video_has_audio
+from middleware import is_authenticated_middleware
+from file_downloader import download_file
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -74,11 +76,11 @@ infer_cfg.infer_params.flag_pasteback = default_paste_back
 class VideoTransformTrack(MediaStreamTrack):
     kind = "video"
 
-    def __init__(self, track, user_id):
+    def __init__(self, track, user_id, source_image):
         super().__init__()
         self.track = track
         self.user_id = user_id
-        self.source_image = image_map["default"]
+        self.source_image = source_image
         self.last_animated_face = None
         self.initialized = False
         self.infer_times = []
@@ -193,10 +195,9 @@ async def offer(request):
     logger.info("Received offer request")
     params = await request.json()
     offer = RTCSessionDescription(sdp=params["sdp"], type=params["type"])
-
-    # Generate a user_id for this session
-    user_id = params.get("userId", str(uuid.uuid4()))
-
+    avatar_url = params["avatar_url"]
+    user_id = params["user_id"]
+    source_image = await download_file(avatar_url)
     pc = RTCPeerConnection(rtc_configuration)
     pcs.add(pc)
 
@@ -244,7 +245,7 @@ async def offer(request):
         nonlocal local_video
         logger.info(f"Received track: {track.kind}")
         if track.kind == "video":
-            local_video = VideoTransformTrack(relay.subscribe(track, buffered=False), user_id)
+            local_video = VideoTransformTrack(relay.subscribe(track, buffered=False), user_id, source_image)
             pc.addTrack(local_video)
             STREAMS[user_id]["video_track"] = local_video
 
@@ -432,7 +433,7 @@ async def on_shutdown(app):
     STREAMS.clear()
 
 if __name__ == "__main__":
-    app = web.Application(middlewares=[logging_middleware])
+    app = web.Application(middlewares=[logging_middleware, is_authenticated_middleware])
     app.on_shutdown.append(on_shutdown)
     app.router.add_get("/health", health)
     app.router.add_get("/", index)
