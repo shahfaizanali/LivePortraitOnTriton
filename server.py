@@ -77,7 +77,7 @@ infer_cfg.infer_params.flag_pasteback = default_paste_back
 class VideoTransformTrack(MediaStreamTrack):
     kind = "video"
 
-    def __init__(self, track, user_id, source_image):
+    def __init__(self, track, user_id, source_image, cfg):
         super().__init__()
         self.track = track
         self.user_id = user_id
@@ -86,7 +86,7 @@ class VideoTransformTrack(MediaStreamTrack):
         self.initialized = False
         self.infer_times = []
         self.frame_ind = 0
-        self.pipe = FasterLivePortraitPipeline(cfg=infer_cfg, is_animal=False)
+        self.pipe = FasterLivePortraitPipeline(cfg=cfg, is_animal=False)
         # self.ffmpeg_process = None
         self.ffmpeg_process = self.start_ffmpeg_process()
 
@@ -197,7 +197,9 @@ async def offer(request):
     params = await request.json()
     offer = RTCSessionDescription(sdp=params["sdp"], type=params["type"])
     avatar_url = params["avatar_url"]
-    user_id = "random"
+    config = OmegaConf.create(params["config"])
+    merged_cfg = OmegaConf.merge(infer_cfg, config)
+    user_id = request["user_id"]
     source_image = await download_file(avatar_url)
     pc = RTCPeerConnection(rtc_configuration)
     pcs.add(pc)
@@ -246,7 +248,7 @@ async def offer(request):
         nonlocal local_video
         logger.info(f"Received track: {track.kind}")
         if track.kind == "video":
-            local_video = VideoTransformTrack(relay.subscribe(track, buffered=False), user_id, source_image)
+            local_video = VideoTransformTrack(relay.subscribe(track, buffered=False), user_id, source_image, merged_cfg)
             pc.addTrack(local_video)
             STREAMS[user_id]["video_track"] = local_video
 
