@@ -9,6 +9,7 @@ import uuid
 import cv2
 import ffmpeg
 import numpy as np
+import aiohttp_cors
 from aiohttp import web
 from aiortc import (
     MediaStreamTrack,
@@ -434,16 +435,23 @@ async def on_shutdown(app):
 
 if __name__ == "__main__":
     app = web.Application(middlewares=[logging_middleware, is_authenticated_middleware])
+    cors = aiohttp_cors.setup(app, defaults={
+    "https://ps-dev-ce1b0.ravai.hypelaunch.io": {  # Replace with your frontend's origin
+        "allow_headers": "*",
+        "allow_methods": "*",
+        "allow_credentials": True,  # Allow cookies
+        }
+    })
     app.on_shutdown.append(on_shutdown)
     app.router.add_get("/health", health)
     app.router.add_get("/", index)
     app.router.add_get("/stream", stream)
     app.router.add_get("/perf", perf)
-    app.router.add_post("/offer", offer)
+    offer_route = app.router.add_post("/offer", offer)
     app.router.add_post("/upload", upload_image)
     app.router.add_post("/update-source-image", update_source_image)
     app.router.add_get("/get-available", get_available_files)
-
+    cors.add(offer_route)
     # New endpoints for viewers
     # The viewer sends their offer via /viewer_offer and receives an answer
     app.router.add_post("/viewer_offer", viewer_offer)

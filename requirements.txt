@@ -18,3 +18,4 @@ lapx
 tritonclient[all]
 PyJWT
 pymongo
+aiohttp_cors
