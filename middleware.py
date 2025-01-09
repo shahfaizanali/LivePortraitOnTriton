@@ -17,14 +17,14 @@ async def is_authenticated_middleware(request, handler):
         decoded_data = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
         user_id = decoded_data.get("id")
         
-        user = await get_user_by_id(user_id)
-        if not user:
-            response = web.json_response({"error": "User not found"}, status=401)
-            response.del_cookie("token")
-            return response
+        # user = await get_user_by_id(user_id)
+        # if not user:
+        #     response = web.json_response({"error": "User not found"}, status=401)
+        #     response.del_cookie("token")
+        #     return response
 
         # request["user"] = user
-        request["user_id"] = user["_id"]
+        request["user_id"] = user_id
         return await handler(request)
     except jwt.ExpiredSignatureError:
         response = web.json_response({"error": "Token has expired"}, status=401)
