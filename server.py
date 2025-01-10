@@ -99,17 +99,17 @@ class VideoTransformTrack(MediaStreamTrack):
             'ffmpeg',
             '-f', 'rawvideo',
             '-pix_fmt', 'rgb24',
-            '-s', '556x556',  # Must match the output frame size you're processing
-            '-r', '30',       # Framerate
+            '-s', '556x556',  # Adjust resolution as needed
+            '-r', '30',  # Adjust framerate as needed
             '-i', '-',
             '-pix_fmt', 'yuv420p',
             '-c:v', 'libx264',
-            '-b:v', '2M',
+            '-b:v', '2M',  # Adjust bitrate as needed
             '-maxrate', '2M',
             '-bufsize', '4M',
             '-preset', 'ultrafast',
             '-tune', 'zerolatency',
-            '-g', '60',
+            '-g', '60',  # Keyframe interval
             '-f', 'flv',
             rtmp_url
         ], stdin=subprocess.PIPE)
