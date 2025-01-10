@@ -135,7 +135,8 @@ class VideoTransformTrack(MediaStreamTrack):
             logger.info(f"No face in driving frame: {self.frame_ind}")
             # No output, just return the original frame
             return frame
-
+        logger.info(f"out_crop shape: {out_crop.shape}")
+        logger.info(f"out_crop dtype: {out_crop.dtype}")
         # self.infer_times.append(time.time() - t0)
         # logger.info(time.time() - t0)
 
