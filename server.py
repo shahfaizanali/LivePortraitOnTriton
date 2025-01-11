@@ -274,7 +274,7 @@ async def offer(request):
                 del STREAMS[user_id]
 
     @pc.on("track")
-    async def on_track(track):
+    def on_track(track):
         nonlocal local_video
         logger.info(f"Received track: {track.kind}")
         if track.kind == "video":
