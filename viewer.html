@@ -24,6 +24,7 @@
             // Extract user_id from URL query parameter
             const params = new URLSearchParams(window.location.search);
             const user_id = params.get('user_id');
+            const whepURL = "https://b.siobud.com/api/whep"
 
             if (!user_id) {
                 alert("No user_id provided in URL.");
@@ -32,85 +33,43 @@
 
             const remoteVideo = document.getElementById('remoteVideo');
 
-            // Configure ICE servers (STUN servers)
-            const pc = new RTCPeerConnection({
-                iceServers: [
-                    { urls: 'stun:stun.l.google.com:19302' },
-                    { urls: 'stun:stun1.l.google.com:19302' }
-                ]
-            });
+            // // Configure ICE servers (STUN servers)
+            // const pc = new RTCPeerConnection({
+            //     iceServers: [
+            //         { urls: 'stun:stun.l.google.com:19302' },
+            //         { urls: 'stun:stun1.l.google.com:19302' }
+            //     ]
+            // });
 
-            // When we get a track, set it as the source of the video element
-            pc.ontrack = (event) => {
-                console.log("Received track:", event.track.kind);
-                if (event.track.kind === 'video') {
-                    remoteVideo.srcObject = event.streams[0];
-                }
-            };
+            let peerConnection = new RTCPeerConnection()
+      peerConnection.addTransceiver('audio', { direction: 'recvonly' })
+      peerConnection.addTransceiver('video', { direction: 'recvonly' })
 
-            // Handle ICE candidates: send them to the server
-            pc.onicecandidate = async (event) => {
-                if (event.candidate) {
-                    try {
-                        await fetch('/viewer_ice', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                user_id: user_id,
-                                viewer_id: viewer_id, // defined after we get the answer
-                                candidate: event.candidate
-                            })
-                        });
-                    } catch (err) {
-                        console.error("Error sending ICE candidate:", err);
-                    }
-                }
-            };
+      peerConnection.ontrack = function (event) {
+        remoteVideo.srcObject = event.streams[0]
+      }
 
-            // Create an SDP offer for receiving only
-            const offer = await pc.createOffer({
-                offerToReceiveVideo: true,
-                offerToReceiveAudio: true
-            });
-            await pc.setLocalDescription(offer);
+      peerConnection.oniceconnectionstatechange = () => {
+        document.getElementById('connectionState').innerText = peerConnection.iceConnectionState;
+      }
 
-            // Send the offer to the server
-            const offerResponse = await fetch('/viewer_offer', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    user_id: user_id,
-                    sdp: offer.sdp,
-                    type: offer.type
+      peerConnection.createOffer().then(offer => {
+        peerConnection.setLocalDescription(offer)
+            fetch(whepURL, {
+              method: 'POST',
+              body: offer.sdp,
+              headers: {
+                Authorization: `Bearer ${streamKey}`,
+                'Content-Type': 'application/sdp'
+              }
+            }).then(r => r.text())
+              .then(answer => {
+                peerConnection.setRemoteDescription({
+                  sdp: answer,
+                  type: 'answer'
                 })
-            });
-
-            if (!offerResponse.ok) {
-                const errorText = await offerResponse.text();
-                console.error("Error viewer_offer:", errorText);
-                alert("Failed to get answer from server.");
-                return;
-            }
-
-            const answerData = await offerResponse.json();
-            const answerDesc = {
-                sdp: answerData.sdp,
-                type: answerData.type
-            };
-            const viewer_id = answerData.viewer_id;
-
-            // Set the remote description with the answer
-            await pc.setRemoteDescription(answerDesc);
-
-            // Now the connection should be established and remote video should start playing when available.
-
-            // Optional: monitor connection states
-            pc.onconnectionstatechange = () => {
-                console.log("PeerConnection state:", pc.connectionState);
-                if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected' || pc.connectionState === 'closed') {
-                    // Handle disconnection/cleanup if needed
-                }
-            };
+              })
+          })
         })();
     </script>
 </body>

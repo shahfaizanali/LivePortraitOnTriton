@@ -281,7 +281,7 @@ async def offer(request):
             local_video = VideoTransformTrack(relay.subscribe(track, buffered=False), user_id, source_image, merged_cfg)
             relayed = relay.subscribe(local_video, buffered=False)
             pc.addTrack(relayed)
-            await create_whip_client(relayed, user_id)
+            # await create_whip_client(relayed, user_id)
             STREAMS[user_id]["video_track"] = local_video
 
     @pc.on("datachannel")
@@ -318,8 +318,8 @@ async def offer(request):
             "sdp": pc.localDescription.sdp,
             "type": pc.localDescription.type,
             "user_id": user_id,
-            "stream_url": rtmp_url,
-            # "stream_url": viewer_url,
+            # "stream_url": rtmp_url,
+            "stream_url": viewer_url,
         })
     )
 
@@ -465,6 +465,7 @@ async def on_shutdown(app):
     coros = [pc.close() for pc in broadcasters]
     await asyncio.gather(*coros)
     broadcasters.clear()
+    whip_broadcasters.clear()
     STREAMS.clear()
 
 if __name__ == "__main__":
