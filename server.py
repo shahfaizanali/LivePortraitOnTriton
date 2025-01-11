@@ -247,9 +247,9 @@ async def offer(request):
         nonlocal local_video
         logger.info(f"Received track: {track.kind}")
         if track.kind == "video":
-            local_video = VideoTransformTrack(track, user_id, source_image, merged_cfg)
-            relayed_transformed_track = relay.subscribe(local_video, buffered=False)
-            pc.addTrack(relayed_transformed_track)
+            local_video = VideoTransformTrack(relay.subscribe(track, buffered=False), user_id, source_image, merged_cfg)
+            relayed = relay.subscribe(local_video, buffered=False)
+            pc.addTrack(relayed)
             STREAMS[user_id]["video_track"] = local_video
 
     @pc.on("datachannel")
