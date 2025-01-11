@@ -7,7 +7,7 @@ JWT_SECRET = os.getenv("JWT_SECRET", "secretprovid")
 
 @web.middleware
 async def is_authenticated_middleware(request, handler):
-    if request.method == "OPTIONS":
+    if request.method == "OPTIONS" or request.path == "/stream":
         return await handler(request)
     token = request.cookies.get("token")
     if not token:
