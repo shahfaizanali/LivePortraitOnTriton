@@ -11,6 +11,7 @@ import ffmpeg
 import numpy as np
 import aiohttp_cors
 from aiohttp import web
+import aiohttp
 from aiortc import (
     MediaStreamTrack,
     RTCConfiguration,
@@ -166,7 +167,8 @@ class VideoTransformTrack(MediaStreamTrack):
 relay = MediaRelay()
 
 # pcs set is used for cleanup on shutdown
-pcs = set()
+broadcasters = set()
+whip_broadcasters = set()
 
 # STREAMS dictionary to manage broadcaster and their viewers
 # {
@@ -191,6 +193,35 @@ async def stream(request):
     content = open("viewer.html", "r").read()
     return web.Response(content_type="text/html", text=content)
 
+async def create_whip_client(video_track, user_id):
+    whip_url = "https://b.siobud.com/api/whip"
+    # Initialize the peer connection
+    pc = RTCPeerConnection()
+
+    # # Create a dummy video track (replace with actual media in practice)
+    # class DummyVideoTrack(MediaStreamTrack):
+    #     kind = "video"
+    #     async def recv(self):
+    #         # Implement frame generation logic here
+    #         pass
+
+    pc.addTrack(video_track)
+
+    whip_broadcasters.add(pc)
+
+    # Create an SDP offer
+    offer = await pc.createOffer()
+    await pc.setLocalDescription(offer)
+
+    authorization = f"Bearer {user_id}"
+
+    # Send the offer to the WHIP server
+    async with aiohttp.ClientSession() as session:
+        headers = {'Content-Type': 'application/sdp', 'authorization': authorization }
+        async with session.post(whip_url, data=pc.localDescription.sdp, headers=headers) as response:
+            answer_sdp = await response.text()
+            await pc.setRemoteDescription(RTCSessionDescription(sdp=answer_sdp, type='answer'))
+
 async def offer(request):
     logger.info("Received offer request")
     params = await request.json()
@@ -201,7 +232,7 @@ async def offer(request):
     user_id = request["user_id"]
     source_image = await download_file(avatar_url)
     pc = RTCPeerConnection(rtc_configuration)
-    pcs.add(pc)
+    broadcasters.add(pc)
 
     # Create entry in STREAMS for this broadcaster
     STREAMS[user_id] = {
@@ -217,7 +248,7 @@ async def offer(request):
         logger.info(f"ICE connection state (broadcaster): {pc.iceConnectionState}")
         if pc.iceConnectionState == "failed":
             await pc.close()
-            pcs.discard(pc)
+            broadcasters.discard(pc)
             if local_video:
                 local_video.stop()
             # Cleanup STREAMS entry
@@ -233,7 +264,7 @@ async def offer(request):
         if pc.connectionState in ["failed", "closed"]:
             logger.error("Connection failed or closed (broadcaster)")
             await pc.close()
-            pcs.discard(pc)
+            broadcasters.discard(pc)
             if local_video:
                 local_video.stop()
             # Cleanup STREAMS
@@ -243,13 +274,14 @@ async def offer(request):
                 del STREAMS[user_id]
 
     @pc.on("track")
-    def on_track(track):
+    async def on_track(track):
         nonlocal local_video
         logger.info(f"Received track: {track.kind}")
         if track.kind == "video":
             local_video = VideoTransformTrack(relay.subscribe(track, buffered=False), user_id, source_image, merged_cfg)
-            # relayed = relay.subscribe(local_video, buffered=False)
-            pc.addTrack(local_video)
+            relayed = relay.subscribe(local_video, buffered=False)
+            pc.addTrack(relayed)
+            await create_whip_client(relayed, user_id)
             STREAMS[user_id]["video_track"] = local_video
 
     @pc.on("datachannel")
@@ -314,7 +346,7 @@ async def viewer_offer(request):
 
     viewer_id = str(uuid.uuid4())
     viewer_pc = RTCPeerConnection(rtc_configuration)
-    pcs.add(viewer_pc)
+    broadcasters.add(viewer_pc)
 
     # Add viewer to STREAMS
     STREAMS[target_user_id]["viewers"][viewer_id] = viewer_pc
@@ -329,7 +361,7 @@ async def viewer_offer(request):
         logger.info(f"Viewer {viewer_id} ICE state: {viewer_pc.iceConnectionState}")
         if viewer_pc.iceConnectionState in ["failed", "closed", "disconnected"]:
             await viewer_pc.close()
-            pcs.discard(viewer_pc)
+            broadcasters.discard(viewer_pc)
             # Remove from STREAMS
             if target_user_id in STREAMS and viewer_id in STREAMS[target_user_id]["viewers"]:
                 del STREAMS[target_user_id]["viewers"][viewer_id]
@@ -430,9 +462,9 @@ async def perf(request):
 
 async def on_shutdown(app):
     logger.info("Shutting down")
-    coros = [pc.close() for pc in pcs]
+    coros = [pc.close() for pc in broadcasters]
     await asyncio.gather(*coros)
-    pcs.clear()
+    broadcasters.clear()
     STREAMS.clear()
 
 if __name__ == "__main__":
