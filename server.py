@@ -155,7 +155,7 @@ class VideoTransformTrack(MediaStreamTrack):
 
     async def handle_message(self, message):
         if message['type'] == 'reset':
-          self.initialized = False
+          self.pipe.src_lmk_pre = None
 
     def stop(self):
         logger.info("Stopping VideoTransformTrack and closing RTMP stream")
