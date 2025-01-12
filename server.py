@@ -288,7 +288,7 @@ async def offer(request):
     @pc.on("datachannel")
     async def on_datachannel(channel):
         @channel.on("message")
-        def on_message(message):
+        async def on_message(message):
             logger.info(f"Datachannel message: {message}")
             if isinstance(message, str):
                 data = json.loads(message)
