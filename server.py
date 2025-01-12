@@ -282,7 +282,7 @@ async def offer(request):
             local_video = VideoTransformTrack(track, user_id, source_image, merged_cfg)
             relayed = relay.subscribe(local_video, buffered=False)
             pc.addTrack(local_video)
-            await create_whip_client(relayed, user_id)
+            # await create_whip_client(relayed, user_id)
             STREAMS[user_id]["video_track"] = local_video
 
     @pc.on("datachannel")
