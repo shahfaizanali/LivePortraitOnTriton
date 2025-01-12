@@ -88,8 +88,8 @@ class VideoTransformTrack(MediaStreamTrack):
         self.infer_times = []
         self.frame_ind = 0
         self.pipe = FasterLivePortraitPipeline(cfg=cfg, is_animal=False)
-        # self.ffmpeg_process = None
-        self.ffmpeg_process = self.start_ffmpeg_process()
+        self.ffmpeg_process = None
+        # self.ffmpeg_process = self.start_ffmpeg_process()
 
     def start_ffmpeg_process(self):
         # Create a personalized RTMP URL
@@ -152,9 +152,9 @@ class VideoTransformTrack(MediaStreamTrack):
         new_frame.time_base = frame.time_base
         return new_frame
 
-    def handle_message(self, message):
-        # Handle datachannel messages if needed
-        pass
+    async def handle_message(self, message):
+        if message['type'] == 'reset':
+          await self.pipe.prepare_source(self.source_image, realtime=True)
 
     def stop(self):
         logger.info("Stopping VideoTransformTrack and closing RTMP stream")
@@ -220,6 +220,7 @@ async def create_whip_client(video_track, user_id):
         headers = {'Content-Type': 'application/sdp', 'authorization': authorization }
         async with session.post(whip_url, data=pc.localDescription.sdp, headers=headers) as response:
             answer_sdp = await response.text()
+            response.close()
             await pc.setRemoteDescription(RTCSessionDescription(sdp=answer_sdp, type='answer'))
 
 async def offer(request):
@@ -279,13 +280,13 @@ async def offer(request):
         logger.info(f"Received track: {track.kind}")
         if track.kind == "video":
             local_video = VideoTransformTrack(relay.subscribe(track, buffered=False), user_id, source_image, merged_cfg)
-            relayed = relay.subscribe(local_video, buffered=False)
+            # relayed = relay.subscribe(local_video, buffered=False)
             pc.addTrack(local_video)
-            await create_whip_client(relayed, user_id)
+            await create_whip_client(local_video, user_id)
             STREAMS[user_id]["video_track"] = local_video
 
     @pc.on("datachannel")
-    def on_datachannel(channel):
+    async def on_datachannel(channel):
         @channel.on("message")
         def on_message(message):
             logger.info(f"Datachannel message: {message}")
@@ -293,7 +294,7 @@ async def offer(request):
                 data = json.loads(message)
                 for sender in pc.getSenders():
                     if sender.track and sender.track.kind == "video" and isinstance(sender.track, VideoTransformTrack):
-                        sender.track.handle_message(data)
+                        await sender.track.handle_message(data)
 
     await pc.setRemoteDescription(offer)
     answer = await pc.createAnswer()

@@ -22,9 +22,11 @@ async def download_file(url: str):
                     with open(full_path, "wb") as f:
                         f.write(await response.read())
                     print(f"File downloaded: {full_path}")
+                    response.close()
                     return full_path
                 else:
                     print(f"Failed to download file from {url}, status: {response.status}")
+                    response.close()
                     return None
     except Exception as e:
         print(f"Error downloading file from {url}: {e}")
