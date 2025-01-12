@@ -275,13 +275,13 @@ async def offer(request):
                 del STREAMS[user_id]
 
     @pc.on("track")
-    async def on_track(track):
+    def on_track(track):
         nonlocal local_video
         logger.info(f"Received track: {track.kind}")
         if track.kind == "video":
             local_video = VideoTransformTrack(track, user_id, source_image, merged_cfg)
             relayed = relay.subscribe(local_video, buffered=False)
-            await pc.addTrack(local_video)
+            pc.addTrack(local_video)
             # await create_whip_client(relayed, user_id)
             STREAMS[user_id]["video_track"] = local_video
 
