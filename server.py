@@ -154,7 +154,7 @@ class VideoTransformTrack(MediaStreamTrack):
 
     async def handle_message(self, message):
         if message['type'] == 'reset':
-          # await self.pipe.prepare_source(self.source_image, realtime=True)
+          await self.pipe.prepare_source(self.source_image, realtime=True)
           self.frame_ind = 0
 
     def stop(self):
