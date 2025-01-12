@@ -87,8 +87,8 @@ class VideoTransformTrack(MediaStreamTrack):
         self.initialized = False
         self.infer_times = []
         self.frame_ind = 0
-        self.pipe = FasterLivePortraitPipeline(cfg=cfg, is_animal=False)
         self.ffmpeg_process = None
+        self.cfg = cfg
         # self.ffmpeg_process = self.start_ffmpeg_process()
 
     def start_ffmpeg_process(self):
@@ -124,6 +124,7 @@ class VideoTransformTrack(MediaStreamTrack):
         img = frame.to_ndarray(format="rgb24")
 
         if not self.initialized:
+            self.pipe = FasterLivePortraitPipeline(cfg=self.cfg, is_animal=False)
             await self.pipe.initialize()
             await self.pipe.prepare_source(self.source_image, realtime=True)
             self.initialized = True
@@ -154,8 +155,7 @@ class VideoTransformTrack(MediaStreamTrack):
 
     async def handle_message(self, message):
         if message['type'] == 'reset':
-          await self.pipe.prepare_source(self.source_image, realtime=True)
-          self.frame_ind = 0
+          self.initialized = False
 
     def stop(self):
         logger.info("Stopping VideoTransformTrack and closing RTMP stream")
