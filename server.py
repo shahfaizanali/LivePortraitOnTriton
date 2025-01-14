@@ -153,7 +153,7 @@ class VideoTransformTrack(MediaStreamTrack):
         new_frame.time_base = frame.time_base
         return new_frame
 
-    async def handle_message(self, message):
+    def handle_message(self, message):
         if message['type'] == 'reset':
           self.pipe.src_lmk_pre = None
 
@@ -288,15 +288,15 @@ async def offer(request):
             # STREAMS[user_id]["video_track"] = local_video
 
     @pc.on("datachannel")
-    async def on_datachannel(channel):
+    def on_datachannel(channel):
         @channel.on("message")
-        async def on_message(message):
+        def on_message(message):
             logger.info(f"Datachannel message: {message}")
             if isinstance(message, str):
                 data = json.loads(message)
                 for sender in pc.getSenders():
                     if sender.track and sender.track.kind == "video" and isinstance(sender.track, VideoTransformTrack):
-                        await sender.track.handle_message(data)
+                        sender.track.handle_message(data)
 
     await pc.setRemoteDescription(offer)
     answer = await pc.createAnswer()
