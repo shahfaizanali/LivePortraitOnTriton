@@ -286,6 +286,7 @@ async def offer(request):
             relayed = relay.subscribe(local_video, buffered=False)
             # await create_whip_client(relayed, user_id)
             asyncio.ensure_future(create_whip_client(relayed, user_id))
+            pc.video_track = local_video
             pc.addTrack(relayed)
             # STREAMS[user_id]["video_track"] = local_video
 
@@ -296,9 +297,11 @@ async def offer(request):
             logger.info(f"Datachannel message: {message}")
             if isinstance(message, str):
                 data = json.loads(message)
-                for sender in pc.getSenders():
-                    if sender.track and sender.track.kind == "video" and isinstance(sender.track, VideoTransformTrack):
-                        sender.track.handle_message(data)
+                if(pc.video_track):
+                    pc.video_track.handle_message(data)
+                # for sender in pc.getSenders():
+                #     if sender.track and sender.track.kind == "video" and isinstance(sender.track, VideoTransformTrack):
+                #         sender.track.handle_message(data)
 
     await pc.setRemoteDescription(offer)
     answer = await pc.createAnswer()
