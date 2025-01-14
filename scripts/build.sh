@@ -20,9 +20,9 @@ docker ps -a --filter "name=live-triton" --format "{{.Names}}" | xargs -r -n 1 d
 
 cd nginx
 
-# docker build -t hypelaunchdev/analytics-nginx .
+docker build -t hypelaunchdev/analytics-nginx .
 
-# docker push hypelaunchdev/analytics-nginx
+docker push hypelaunchdev/analytics-nginx
 
 docker stop nginx-avatar
 

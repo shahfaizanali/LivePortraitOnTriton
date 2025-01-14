@@ -195,7 +195,7 @@ async def stream(request):
     return web.Response(content_type="text/html", text=content)
 
 async def create_whip_client(video_track, user_id):
-    whip_url = "https://b.siobud.com/api/whip"
+    whip_url = "http://localhost:8080/api/whip"
     # Initialize the peer connection
     pc = RTCPeerConnection()
 
