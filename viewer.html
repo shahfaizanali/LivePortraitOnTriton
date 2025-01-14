@@ -17,7 +17,7 @@
     </style>
 </head>
 <body>
-    <video id="remoteVideo" autoplay></video>
+    <video id="remoteVideo" controls></video>
     <script>
         (async () => {
             // Extract user_id from URL query parameter
@@ -48,6 +48,13 @@
         remoteVideo.srcObject = event.streams[0]
         remoteVideo.play()
       }
+
+      remoteVideo.addEventListener('play', () => {
+        console.log('Video started playing');
+        
+        // Hide the controls
+        remoteVideo.controls = false;
+      });
 
       peerConnection.oniceconnectionstatechange = () => {
         console.log(peerConnection.iceConnectionState)
