@@ -276,15 +276,16 @@ async def offer(request):
                 del STREAMS[user_id]
 
     @pc.on("track")
-    def on_track(track):
+    async def on_track(track):
         nonlocal local_video
         logger.info(f"Received track: {track.kind}")
         if track.kind == "video":
             local_video = VideoTransformTrack(relay.subscribe(track, buffered=False), user_id, source_image, merged_cfg)
+            await create_whip_client(local_video, user_id)
             # relayed = relay.subscribe(local_video, buffered=False)
-            asyncio.ensure_future(create_whip_client(local_video, user_id))
-            pc.addTrack(local_video)
-            STREAMS[user_id]["video_track"] = local_video
+            # asyncio.ensure_future(create_whip_client(local_video, user_id))
+            # pc.addTrack(local_video)
+            # STREAMS[user_id]["video_track"] = local_video
 
     @pc.on("datachannel")
     async def on_datachannel(channel):
