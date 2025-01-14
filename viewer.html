@@ -46,6 +46,7 @@
 
       peerConnection.ontrack = function (event) {
         remoteVideo.srcObject = event.streams[0]
+        remoteVideo.play()
       }
 
       peerConnection.oniceconnectionstatechange = () => {
