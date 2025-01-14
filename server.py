@@ -284,7 +284,7 @@ async def offer(request):
             relayed = relay.subscribe(local_video, buffered=False)
             await create_whip_client(relayed, user_id)
             # asyncio.ensure_future(create_whip_client(local_video, user_id))
-            # pc.addTrack(local_video)
+            pc.addTrack(relayed)
             # STREAMS[user_id]["video_track"] = local_video
 
     @pc.on("datachannel")
