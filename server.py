@@ -171,19 +171,6 @@ relay = MediaRelay()
 
 # pcs set is used for cleanup on shutdown
 broadcasters = set()
-whip_broadcasters = set()
-
-# STREAMS dictionary to manage broadcaster and their viewers
-# {
-#   user_id: {
-#       "broadcaster_pc": PC of the broadcaster,
-#       "video_track": VideoTransformTrack instance,
-#       "viewers": {
-#           viewer_id: viewer_pc
-#       }
-#   }
-# }
-STREAMS = {}
 
 async def health(request):
     return web.Response(status=200)
@@ -196,27 +183,18 @@ async def stream(request):
     content = open("viewer.html", "r").read()
     return web.Response(content_type="text/html", text=content)
 
-async def create_whip_client(video_track, user_id):
+async def create_whip_client(broadcaster_pc):
     whip_url = "http://localhost:8080/api/whip"
-    # Initialize the peer connection
-    pc = RTCPeerConnection()
 
-    # # Create a dummy video track (replace with actual media in practice)
-    # class DummyVideoTrack(MediaStreamTrack):
-    #     kind = "video"
-    #     async def recv(self):
-    #         # Implement frame generation logic here
-    #         pass
-
-    pc.addTrack(video_track)
-
-    whip_broadcasters.add(pc)
+    pc = broadcaster_pc.whip_pc
+    pc.addTrack(broadcaster_pc.video_track)
+    pc.addTrack(broadcaster_pc.audio_track)
 
     # Create an SDP offer
     offer = await pc.createOffer()
     await pc.setLocalDescription(offer)
 
-    authorization = f"Bearer {user_id}"
+    authorization = f"Bearer {broadcaster_pc.user_id}"
 
     # Send the offer to the WHIP server
     async with aiohttp.ClientSession() as session:
@@ -236,16 +214,10 @@ async def offer(request):
     user_id = request["user_id"]
     source_image = await download_file(avatar_url)
     pc = RTCPeerConnection(rtc_configuration)
+    pc.whip_pc = RTCPeerConnection()
+    pc.user_id = request["user_id"]
+    await create_whip_client(pc)
     broadcasters.add(pc)
-
-    # Create entry in STREAMS for this broadcaster
-    STREAMS[user_id] = {
-        "broadcaster_pc": pc,
-        "video_track": None,
-        "viewers": {}
-    }
-
-    local_video = None
 
     @pc.on("iceconnectionstatechange")
     async def on_iceconnectionstatechange():
@@ -255,40 +227,34 @@ async def offer(request):
             broadcasters.discard(pc)
             if local_video:
                 local_video.stop()
-            # Cleanup STREAMS entry
-            if user_id in STREAMS:
-                # Close all viewers
-                for v_id, v_pc in STREAMS[user_id]["viewers"].items():
-                    await v_pc.close()
-                del STREAMS[user_id]
+            
 
     @pc.on("connectionstatechange")
     async def on_connectionstatechange():
         logger.info(f"Connection state (broadcaster): {pc.connectionState}")
         if pc.connectionState in ["failed", "closed"]:
             logger.error("Connection failed or closed (broadcaster)")
+            await pc.whip_pc.close()
             await pc.close()
             broadcasters.discard(pc)
-            if local_video:
-                local_video.stop()
-            # Cleanup STREAMS
-            if user_id in STREAMS:
-                for v_id, v_pc in STREAMS[user_id]["viewers"].items():
-                    await v_pc.close()
-                del STREAMS[user_id]
+            if pc.video_track:
+                pc.video_track.stop()
 
     @pc.on("track")
     def on_track(track):
-        nonlocal local_video
         logger.info(f"Received track: {track.kind}")
         if track.kind == "video":
             local_video = VideoTransformTrack(relay.subscribe(track, buffered=False), user_id, source_image, merged_cfg)
             relayed = relay.subscribe(local_video, buffered=False)
-            # await create_whip_client(relayed, user_id)
-            asyncio.ensure_future(create_whip_client(relayed, user_id))
             pc.video_track = local_video
             pc.addTrack(relayed)
-            # STREAMS[user_id]["video_track"] = local_video
+            pc.whip_pc.addTrack(relayed)
+              
+        if track.kind == "audio":
+            relayed = relay.subscribe(track, buffered=False)
+            pc.audio_track = track
+            # pc.addTrack(relayed)
+            pc.whip_pc.addTrack(relayed)
 
     @pc.on("datachannel")
     def on_datachannel(channel):
@@ -299,9 +265,6 @@ async def offer(request):
                 data = json.loads(message)
                 if(pc.video_track):
                     pc.video_track.handle_message(data)
-                # for sender in pc.getSenders():
-                #     if sender.track and sender.track.kind == "video" and isinstance(sender.track, VideoTransformTrack):
-                #         sender.track.handle_message(data)
 
     await pc.setRemoteDescription(offer)
     answer = await pc.createAnswer()
@@ -331,132 +294,6 @@ async def offer(request):
         })
     )
 
-async def viewer_offer(request):
-    """
-    Endpoint for a viewer to connect to an existing stream.
-    Expects JSON:
-    {
-      "user_id": "<broadcaster_user_id>",
-      "sdp": "<offer_sdp>",
-      "type": "offer"
-    }
-    """
-    params = await request.json()
-    target_user_id = params.get("user_id")
-    if target_user_id not in STREAMS:
-        return web.Response(status=404, text="Stream not found")
-
-    offer_sdp = params.get("sdp")
-    offer_type = params.get("type")
-
-    if not offer_sdp or not offer_type:
-        return web.Response(status=400, text="Invalid offer")
-
-    viewer_id = str(uuid.uuid4())
-    viewer_pc = RTCPeerConnection(rtc_configuration)
-    broadcasters.add(viewer_pc)
-
-    # Add viewer to STREAMS
-    STREAMS[target_user_id]["viewers"][viewer_id] = viewer_pc
-
-    # Attach the processed video track to this viewer
-    video_track = STREAMS[target_user_id]["video_track"]
-    if video_track:
-        viewer_pc.addTrack(video_track)
-
-    @viewer_pc.on("iceconnectionstatechange")
-    async def on_iceconnectionstatechange():
-        logger.info(f"Viewer {viewer_id} ICE state: {viewer_pc.iceConnectionState}")
-        if viewer_pc.iceConnectionState in ["failed", "closed", "disconnected"]:
-            await viewer_pc.close()
-            broadcasters.discard(viewer_pc)
-            # Remove from STREAMS
-            if target_user_id in STREAMS and viewer_id in STREAMS[target_user_id]["viewers"]:
-                del STREAMS[target_user_id]["viewers"][viewer_id]
-
-    offer = RTCSessionDescription(sdp=offer_sdp, type=offer_type)
-    await viewer_pc.setRemoteDescription(offer)
-    answer = await viewer_pc.createAnswer()
-    await viewer_pc.setLocalDescription(answer)
-
-    return web.Response(
-        content_type="application/json",
-        text=json.dumps({
-            "sdp": viewer_pc.localDescription.sdp,
-            "type": viewer_pc.localDescription.type,
-            "viewer_id": viewer_id
-        })
-    )
-
-async def viewer_ice(request):
-    """
-    Endpoint for viewer to send ICE candidates.
-    {
-      "user_id": "<broadcaster_user_id>",
-      "viewer_id": "<viewer_id>",
-      "candidate": {...}
-    }
-    """
-    params = await request.json()
-    target_user_id = params.get("user_id")
-    viewer_id = params.get("viewer_id")
-    candidate = params.get("candidate")
-
-    if not (target_user_id and viewer_id and candidate):
-        return web.Response(status=400, text="Missing parameters")
-
-    if target_user_id not in STREAMS or viewer_id not in STREAMS[target_user_id]["viewers"]:
-        return web.Response(status=404, text="Viewer or stream not found")
-
-    viewer_pc = STREAMS[target_user_id]["viewers"][viewer_id]
-    try:
-        await viewer_pc.addIceCandidate(candidate)
-    except Exception as e:
-        logger.error(f"Error adding ICE candidate for viewer {viewer_id}: {e}")
-
-    return web.Response(status=200, text="OK")
-
-async def upload_image(request):
-    reader = await request.multipart()
-    field = await reader.next()
-    if field.name == 'file':
-        filename = field.filename
-        extension = filename.split(".")[-1]
-        file_path = os.path.join('./images', f"{uuid.uuid4()}.{extension}")
-        with open(file_path, 'wb') as f:
-            while True:
-                chunk = await field.read_chunk()
-                if not chunk:
-                    break
-                f.write(chunk)
-
-        image_map[filename] = file_path
-        return web.Response(text=json.dumps(list(image_map.keys())), content_type='application/json')
-    return web.Response(status=400, text="No file uploaded")
-
-async def update_source_image(request):
-    params = await request.json()
-    image_key = params.get("image")
-    
-    if image_key not in image_map:
-        return web.Response(status=400, text="Image key not found")
-
-    if not os.path.exists(image_map[image_key]):
-        return web.Response(status=404, text="Source image not found")
-
-    # Update source image for all broadcaster video tracks
-    for info in STREAMS.values():
-        video_track = info.get("video_track")
-        if video_track and isinstance(video_track, VideoTransformTrack):
-            video_track.update_source_image(image_key)
-    
-    return web.Response(status=200)
-
-async def get_available_files(request):
-    global image_map
-    image_map = create_image_map()
-    return web.Response(text=json.dumps(list(image_map.keys())), content_type='application/json')
-
 @web.middleware
 async def logging_middleware(request, handler):
     logger.info(f"Received request: {request.method} {request.path}")
@@ -473,8 +310,6 @@ async def on_shutdown(app):
     coros = [pc.close() for pc in broadcasters]
     await asyncio.gather(*coros)
     broadcasters.clear()
-    whip_broadcasters.clear()
-    STREAMS.clear()
 
 if __name__ == "__main__":
     app = web.Application(middlewares=[logging_middleware, is_authenticated_middleware])
@@ -490,15 +325,7 @@ if __name__ == "__main__":
     app.router.add_get("/stream", stream)
     app.router.add_get("/perf", perf)
     offer_route = app.router.add_post("/offer", offer)
-    app.router.add_post("/upload", upload_image)
-    app.router.add_post("/update-source-image", update_source_image)
-    app.router.add_get("/get-available", get_available_files)
     cors.add(offer_route)
-    # New endpoints for viewers
-    # The viewer sends their offer via /viewer_offer and receives an answer
-    app.router.add_post("/viewer_offer", viewer_offer)
-    # The viewer sends ICE candidates via /viewer_ice
-    app.router.add_post("/viewer_ice", viewer_ice)
 
     port = int(os.getenv("PORT", 8081))
     logger.info(f"Starting server on {port}")
