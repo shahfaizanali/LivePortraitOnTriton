@@ -187,10 +187,7 @@ async def create_whip_client(broadcaster_pc):
     whip_url = "http://localhost:8080/api/whip"
 
     pc = broadcaster_pc.whip_pc
-    pc.addTrack(broadcaster_pc.video_track)
-    pc.addTrack(broadcaster_pc.audio_track)
 
-    # Create an SDP offer
     offer = await pc.createOffer()
     await pc.setLocalDescription(offer)
 
