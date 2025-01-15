@@ -188,6 +188,7 @@ async def create_whip_client(broadcaster_pc):
 
     pc = broadcaster_pc.whip_pc
 
+    # Create an SDP offer
     offer = await pc.createOffer()
     await pc.setLocalDescription(offer)
 
@@ -213,7 +214,6 @@ async def offer(request):
     pc = RTCPeerConnection(rtc_configuration)
     pc.whip_pc = RTCPeerConnection()
     pc.user_id = request["user_id"]
-    await create_whip_client(pc)
     broadcasters.add(pc)
 
     @pc.on("iceconnectionstatechange")
@@ -222,8 +222,8 @@ async def offer(request):
         if pc.iceConnectionState == "failed":
             await pc.close()
             broadcasters.discard(pc)
-            if local_video:
-                local_video.stop()
+            # if local_video:
+            #     local_video.stop()
             
 
     @pc.on("connectionstatechange")
@@ -250,8 +250,10 @@ async def offer(request):
         if track.kind == "audio":
             relayed = relay.subscribe(track, buffered=False)
             pc.audio_track = track
-            # pc.addTrack(relayed)
             pc.whip_pc.addTrack(relayed)
+        if hasattr(pc, "audio_track") and hasattr(pc, "video_track"):
+          if pc.audio_track and pc.video_track:
+              asyncio.ensure_future(create_whip_client(pc.whip_pc))
 
     @pc.on("datachannel")
     def on_datachannel(channel):
