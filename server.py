@@ -253,7 +253,7 @@ async def offer(request):
             pc.whip_pc.addTrack(relayed)
         if hasattr(pc, "audio_track") and hasattr(pc, "video_track"):
           if pc.audio_track and pc.video_track:
-              asyncio.ensure_future(create_whip_client(pc.whip_pc))
+              asyncio.ensure_future(create_whip_client(pc))
 
     @pc.on("datachannel")
     def on_datachannel(channel):
