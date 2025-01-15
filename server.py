@@ -248,7 +248,7 @@ async def offer(request):
             pc.whip_pc.addTrack(relayed)
               
         if track.kind == "audio":
-            relayed = relay.subscribe(track, buffered=False)
+            relayed = relay.subscribe(track, buffered=True)
             pc.audio_track = track
             pc.whip_pc.addTrack(relayed)
         if hasattr(pc, "audio_track") and hasattr(pc, "video_track"):
