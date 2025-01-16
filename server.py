@@ -4,6 +4,7 @@ import logging
 import os
 import subprocess
 import time
+import traceback
 import uuid
 
 import cv2
@@ -42,30 +43,6 @@ ICE_SERVERS = [
 rtc_configuration = RTCConfiguration(
     iceServers=ICE_SERVERS,
 )
-
-def create_image_map(images_dir='./images'):
-    images_path = os.path.abspath(images_dir)
-
-    if not os.path.isdir(images_path):
-        raise FileNotFoundError(f"The directory {images_dir} does not exist.")
-
-    allowed_extensions = {'.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tiff', '.webp'}
-
-    image_map = {}
-
-    for entry in os.listdir(images_path):
-        entry_path = os.path.join(images_path, entry)
-        
-        if os.path.isfile(entry_path):
-            filename, ext = os.path.splitext(entry)
-            if ext.lower() in allowed_extensions:
-                relative_path = os.path.relpath(entry_path, os.getcwd())
-                relative_path = relative_path.replace(os.sep, '/')
-                image_map[filename] = f"./{relative_path}"
-
-    return image_map
-
-image_map = create_image_map()
 
 # Default values
 default_src_image = "deepfake_cleveland.png"
@@ -120,6 +97,8 @@ class VideoTransformTrack(MediaStreamTrack):
         self.initialized = False
 
     async def recv(self):
+      frame = None
+      try:  
         frame = await self.track.recv()
         img = frame.to_ndarray(format="rgb24")
 
@@ -135,7 +114,6 @@ class VideoTransformTrack(MediaStreamTrack):
         self.frame_ind += 1
         if out_crop is None:
             logger.info(f"No face in driving frame: {self.frame_ind}")
-            # No output, just return the original frame
             return frame
         # self.infer_times.append(time.time() - t0)
         # logger.info(time.time() - t0)
@@ -152,6 +130,10 @@ class VideoTransformTrack(MediaStreamTrack):
         new_frame.pts = frame.pts
         new_frame.time_base = frame.time_base
         return new_frame
+      except Exception as e:
+            traceback.print_exc()
+            return frame
+      
 
     def handle_message(self, message):
         logger.info(f"handling message: {message['type']}")

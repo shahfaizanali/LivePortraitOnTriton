@@ -57,6 +57,7 @@ class FasterLivePortraitPipeline:
             )
 
     def init_vars(self, **kwargs):
+        self.last_face = None
         self.mask_crop = cv2.imread(self.cfg.infer_params.mask_crop_path, cv2.IMREAD_COLOR)
         self.frame_id = 0
         self.src_lmk_pre = None
@@ -84,17 +85,6 @@ class FasterLivePortraitPipeline:
         c_d_lip_i = np.array(c_d_lip_i).reshape(1, 1)  # 1x1
         combined_lip_ratio_tensor = np.concatenate([c_s_lip, c_d_lip_i], axis=1)
         return combined_lip_ratio_tensor
-
-    async def prepare_source_async(self, source_path, **kwargs):
-        """
-        Wrap the synchronous prepare_source in an async method
-        by running it in a thread pool.
-        """
-        loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(
-            _executor, 
-            functools.partial(self.prepare_source, source_path, **kwargs)
-        )
     
     async def prepare_source(self, source_path, **kwargs):
         print(f"process source:{source_path} >>>>>>>>>")
@@ -208,7 +198,6 @@ class FasterLivePortraitPipeline:
                         src_infos[i].append(None)
                     M = torch.from_numpy(crop_info['M_c2o']).to(self.device)
                     src_infos[i].append(M)
-                print("here")    
                 self.src_infos.append(src_infos[:])
               
             print(f"finish process source:{source_path} >>>>>>>>")
@@ -239,17 +228,6 @@ class FasterLivePortraitPipeline:
         kp_driving_new[..., :2] += delta_tx_ty
 
         return kp_driving_new
-
-    async def run_async(self, image, img_src, src_info, **kwargs):
-        """
-        Wrap the synchronous run method in an async method
-        by running it in a thread pool.
-        """
-        loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(
-            _executor,
-            functools.partial(self.run, image, img_src, src_info, **kwargs)
-        )
     
     async def run(self, image, img_src, src_info, **kwargs):
         img_bgr = image
@@ -257,24 +235,25 @@ class FasterLivePortraitPipeline:
         I_p_pstbk = torch.from_numpy(img_src).to(self.device).float()
         realtime = kwargs.get("realtime", False)
 
-        if self.cfg.infer_params.flag_crop_driving_video:
-            if self.src_lmk_pre is None:
-                src_face = await self.model_dict["face_analysis"].predict(img_bgr)
-                if len(src_face) == 0:
-                    self.src_lmk_pre = None
-                    return None, None, None
-                lmk = src_face[0]
-                lmk = await self.model_dict["landmark"].predict(img_rgb, lmk)
-                self.src_lmk_pre = lmk.copy()
-            else:
-                lmk = await self.model_dict["landmark"].predict(img_rgb, self.src_lmk_pre)
-                self.src_lmk_pre = lmk.copy()
+        if self.src_lmk_pre is None:
+            src_face = await self.model_dict["face_analysis"].predict(img_bgr)
+            if len(src_face) == 0:
+                self.src_lmk_pre = None
+                return None, None, None
+            lmk = src_face[0]
+            lmk = await self.model_dict["landmark"].predict(img_rgb, lmk)
+            self.src_lmk_pre = lmk.copy()
+        else:
+            lmk = await self.model_dict["landmark"].predict(img_rgb, self.src_lmk_pre)
+            self.src_lmk_pre = lmk.copy()
 
+        # 2) -- BRANCHING DEPENDING ON flag_crop_driving_video --
+        if self.cfg.infer_params.flag_crop_driving_video:
             ret_bbox = parse_bbox_from_landmark(
                 lmk,
                 scale=self.cfg.crop_params.dri_scale,
                 vx_ratio_crop_video=self.cfg.crop_params.dri_vx_ratio,
-                vy_ratio=self.cfg.crop_params.dri_vy_ratio,
+                vy_ratio_crop_video=self.cfg.crop_params.dri_vy_ratio,
             )["bbox"]
             global_bbox = [
                 ret_bbox[0, 0],
@@ -282,6 +261,7 @@ class FasterLivePortraitPipeline:
                 ret_bbox[2, 0],
                 ret_bbox[2, 1],
             ]
+
             ret_dct = crop_image_by_bbox(
                 img_rgb,
                 global_bbox,
@@ -294,17 +274,6 @@ class FasterLivePortraitPipeline:
             img_crop = ret_dct["img_crop"]
             img_crop = cv2.resize(img_crop, (256, 256))
         else:
-            if self.src_lmk_pre is None:
-                src_face = await self.model_dict["face_analysis"].predict(img_bgr)
-                if len(src_face) == 0:
-                    self.src_lmk_pre = None
-                    return None, None, None
-                lmk = src_face[0]
-                lmk = await self.model_dict["landmark"].predict(img_rgb, lmk)
-                self.src_lmk_pre = lmk.copy()
-            else:
-                lmk = await self.model_dict["landmark"].predict(img_rgb, self.src_lmk_pre)
-                self.src_lmk_pre = lmk.copy()
             lmk_crop = lmk.copy()
             img_crop = cv2.resize(img_rgb, (256, 256))
 
