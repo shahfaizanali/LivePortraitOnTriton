@@ -23,6 +23,7 @@ class StitchingModel(BaseModel):
         
     async def initialize(self):
         await self.predictor.initialize()
+        print(self.predictor.inputs)
 
     def input_process(self, *data):
         # Assuming data[0] is a numpy array input

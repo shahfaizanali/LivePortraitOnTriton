@@ -76,7 +76,7 @@ class FasterLivePortraitPipeline:
 
     def calc_combined_eye_ratio(self, c_d_eyes_i, source_lmk):
         c_s_eyes = calc_eye_close_ratio(source_lmk[None])
-        c_d_eyes_i = np.array(c_d_eyes_i).reshape(1, 1)
+        c_d_eyes_i = np.array(c_d_eyes_i).reshape(1, -1)
         combined_eye_ratio_tensor = np.concatenate([c_s_eyes, c_d_eyes_i], axis=1)
         return combined_eye_ratio_tensor
 
@@ -347,7 +347,7 @@ class FasterLivePortraitPipeline:
             else:
                 eyes_delta, lip_delta = None, None
                 if self.cfg.infer_params.flag_eye_retargeting:
-                    c_d_eyes_i = input_eye_ratio[0]
+                    c_d_eyes_i = input_eye_ratio
                     combined_eye_ratio_tensor = self.calc_combined_eye_ratio(c_d_eyes_i, source_lmk)
                     eyes_delta = await self.retarget_eye(x_s, combined_eye_ratio_tensor)
                 if self.cfg.infer_params.flag_lip_retargeting:
