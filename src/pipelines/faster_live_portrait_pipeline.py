@@ -112,7 +112,6 @@ class FasterLivePortraitPipeline:
             self.src_imgs = []
             self.src_infos = []
             self.source_path = source_path
-            print(len(self.src_imgs))  
             for ii, img_bgr in tqdm(enumerate(src_imgs_bgr), total=len(src_imgs_bgr)):
                 img_bgr = resize_to_limit(img_bgr, self.cfg.infer_params.source_max_dim,
                                           self.cfg.infer_params.source_division)
@@ -348,7 +347,7 @@ class FasterLivePortraitPipeline:
             else:
                 eyes_delta, lip_delta = None, None
                 if self.cfg.infer_params.flag_eye_retargeting:
-                    c_d_eyes_i = input_eye_ratio
+                    c_d_eyes_i = input_eye_ratio[0]
                     combined_eye_ratio_tensor = self.calc_combined_eye_ratio(c_d_eyes_i, source_lmk)
                     eyes_delta = await self.retarget_eye(x_s, combined_eye_ratio_tensor)
                 if self.cfg.infer_params.flag_lip_retargeting:
