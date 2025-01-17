@@ -200,7 +200,7 @@ class FasterLivePortraitPipeline:
                     #     mask_ori_float = torch.from_numpy(mask_ori_float).to(self.device)
                     #     src_infos[i].append(mask_ori_float)
                     # else:
-                    #     src_infos[i].append(None)
+                    src_infos[i].append(None)
                     M = torch.from_numpy(crop_info['M_c2o']).to(self.device)
                     src_infos[i].append(M)
                 self.src_infos.append(src_infos[:])
