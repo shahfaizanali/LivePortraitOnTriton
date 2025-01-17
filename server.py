@@ -149,10 +149,52 @@ class VideoTransformTrack(MediaStreamTrack):
             self.ffmpeg_process = None
         super().stop()
 
-relay = MediaRelay()
-
 # pcs set is used for cleanup on shutdown
 broadcasters = set()
+
+async def cleanup_peer_connection(pc):
+    """
+    Cleanly stop all tracks, close all associated RTCPeerConnections,
+    and remove from the broadcasters set.
+    """
+    logger.info(f"Cleaning up PeerConnection for user {getattr(pc, 'user_id', 'unknown')}")
+
+    # 1. Stop any custom or local tracks you have saved on the PC
+    #    For example, if you store them on pc.video_track / pc.audio_track
+    if hasattr(pc, "video_track") and pc.video_track is not None:
+        logger.info("Stopping video track")
+        pc.video_track.stop()
+        pc.video_track = None
+    if hasattr(pc, "audio_track") and pc.audio_track is not None:
+        logger.info("Stopping audio track")
+        pc.audio_track.stop()
+        pc.audio_track = None
+        
+    if hasattr(pc, "video_relayed_track") and pc.video_relayed_track is not None:
+        logger.info("Stopping video relayed track")
+        pc.video_relayed_track.stop()
+        pc.video_relayed_track = None
+
+    if hasattr(pc, "audio_relayed_track") and pc.audio_relayed_track is not None:
+        logger.info("Stopping audio relayed track")
+        pc.audio_relayed_track.stop()
+        pc.audio_relayed_track = None
+
+    # 2. Close the 'whip_pc' if it exists
+    if hasattr(pc, "whip_pc") and pc.whip_pc is not None:
+        logger.info("Closing whip_pc")
+        await pc.whip_pc.close()
+        pc.whip_pc = None
+
+    # 3. Close the main PeerConnection
+    logger.info("Closing main PeerConnection")
+    await pc.close()
+
+    # 4. Remove from broadcasters set if still present
+    if pc in broadcasters:
+        broadcasters.discard(pc)
+    logger.info("Cleanup complete")
+
 
 async def health(request):
     return web.Response(status=200)
@@ -197,15 +239,14 @@ async def offer(request):
     pc.whip_pc = RTCPeerConnection()
     pc.user_id = request["user_id"]
     broadcasters.add(pc)
+    relay = MediaRelay()
+
 
     @pc.on("iceconnectionstatechange")
     async def on_iceconnectionstatechange():
         logger.info(f"ICE connection state (broadcaster): {pc.iceConnectionState}")
         if pc.iceConnectionState == "failed":
-            await pc.close()
-            broadcasters.discard(pc)
-            # if local_video:
-            #     local_video.stop()
+          await cleanup_peer_connection(pc)
             
 
     @pc.on("connectionstatechange")
@@ -213,11 +254,7 @@ async def offer(request):
         logger.info(f"Connection state (broadcaster): {pc.connectionState}")
         if pc.connectionState in ["failed", "closed"]:
             logger.error("Connection failed or closed (broadcaster)")
-            await pc.whip_pc.close()
-            await pc.close()
-            broadcasters.discard(pc)
-            if pc.video_track:
-                pc.video_track.stop()
+            await cleanup_peer_connection(pc)
 
     @pc.on("track")
     def on_track(track):
@@ -226,12 +263,14 @@ async def offer(request):
             local_video = VideoTransformTrack(relay.subscribe(track, buffered=False), user_id, source_image, merged_cfg)
             relayed = relay.subscribe(local_video, buffered=False)
             pc.video_track = local_video
+            pc.realyed_video_track = relayed
             pc.addTrack(relayed)
             pc.whip_pc.addTrack(relayed)
               
         if track.kind == "audio":
             relayed = relay.subscribe(track, buffered=True)
             pc.audio_track = track
+            pc.realyed_audio_track = relayed
             pc.whip_pc.addTrack(relayed)
         if hasattr(pc, "audio_track") and hasattr(pc, "video_track"):
           if pc.audio_track and pc.video_track:
@@ -295,11 +334,11 @@ async def on_shutdown(app):
 if __name__ == "__main__":
     app = web.Application(middlewares=[logging_middleware, is_authenticated_middleware])
     cors = aiohttp_cors.setup(app, defaults={
-    "https://ps-dev-ce1b0.ravai.hypelaunch.io": {  # Replace with your frontend's origin
+    "https://*.hypelaunch.io": {  # Frontend 1's origin
         "allow_headers": "*",
         "allow_credentials": True,  # Allow cookies
-        }
-    })
+    },
+})
     app.on_shutdown.append(on_shutdown)
     app.router.add_get("/health", health)
     app.router.add_get("/", index)
