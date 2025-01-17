@@ -518,7 +518,7 @@ class FasterLivePortraitPipeline:
                                         input_lip_ratio,
                                         I_p_pstbk, **kwargs)
         self.last_out_crop = out_crop
-        return img_crop, out_crop
+        return out_crop
 
     def run_with_pkl(self, dri_motion_info, img_src, src_info, **kwargs):
         I_p_pstbk = torch.from_numpy(img_src).to(self.device).float()
