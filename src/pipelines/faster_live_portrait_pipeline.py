@@ -431,6 +431,8 @@ class FasterLivePortraitPipeline:
         if self.cfg.infer_params.flag_handle_no_face:
             faces = await self.model_dict["face_analysis"].predict(img_bgr)
             if len(faces) == 0:
+              self.src_lmk_pre = None
+              self.R_d_0 = None
               return torch.tensor(img_src.astype(np.uint8)).cpu().numpy() 
                     
             

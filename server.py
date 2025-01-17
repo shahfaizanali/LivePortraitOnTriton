@@ -66,6 +66,7 @@ class VideoTransformTrack(MediaStreamTrack):
         self.frame_ind = 0
         self.ffmpeg_process = None
         self.cfg = cfg
+        self.reset_pose = False
         # self.ffmpeg_process = self.start_ffmpeg_process()
 
     def start_ffmpeg_process(self):
@@ -92,10 +93,6 @@ class VideoTransformTrack(MediaStreamTrack):
             rtmp_url
         ], stdin=subprocess.PIPE)
 
-    def update_source_image(self, file_key):
-        self.source_image = image_map[file_key]
-        self.initialized = False
-
     async def recv(self):
       frame = None
       try:  
@@ -110,6 +107,10 @@ class VideoTransformTrack(MediaStreamTrack):
 
         t0 = time.time()
         first_frame = (self.frame_ind == 0)
+        if self.reset_pose:
+            self.pipe.src_lmk_pre = None
+            first_frame = True
+            self.reset_pose = False
         out_crop = await self.pipe.run(img, self.pipe.src_imgs[0], self.pipe.src_infos[0], first_frame=first_frame)
         self.frame_ind += 1
         if out_crop is None:
@@ -138,8 +139,7 @@ class VideoTransformTrack(MediaStreamTrack):
     def handle_message(self, message):
         logger.info(f"handling message: {message['type']}")
         if message['type'] == 'reset':
-          self.pipe.src_lmk_pre = None
-          self.frame_ind = 0
+            self.reset_pose = True
 
     def stop(self):
         logger.info("Stopping VideoTransformTrack and closing RTMP stream")
