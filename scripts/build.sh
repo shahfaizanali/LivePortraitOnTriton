@@ -28,12 +28,12 @@ docker stop nginx-avatar
 
 docker rm nginx-avatar
 
-docker run --network host -d --name nginx-avatar hypelaunchdev/analytics-nginx
+docker run --restart unless-stopped --network host -d --name nginx-avatar hypelaunchdev/analytics-nginx
 
 for i in {0..0}; do
     CONTAINER_NAME="${BASE_NAME}${i}"
     PORT=$((BASE_PORT + i))
-    docker run --gpus=all -d --name $CONTAINER_NAME \
+    docker run --restart unless-stopped --gpus=all -d --name $CONTAINER_NAME \
         -v $CHECKPOINTS_DIR:/LivePortraitOnTriton/checkpoints \
         -v $IMAGES_DIR:/LivePortraitOnTriton/images \
         --network host -e PORT=$PORT $IMAGE_NAME
