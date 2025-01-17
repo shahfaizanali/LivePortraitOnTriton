@@ -110,7 +110,7 @@ class VideoTransformTrack(MediaStreamTrack):
 
         t0 = time.time()
         first_frame = (self.frame_ind == 0)
-        dri_crop, out_crop, out_org = await self.pipe.run(img, self.pipe.src_imgs[0], self.pipe.src_infos[0], first_frame=first_frame)
+        dri_crop, out_crop = await self.pipe.run(img, self.pipe.src_imgs[0], self.pipe.src_infos[0], first_frame=first_frame)
         self.frame_ind += 1
         if out_crop is None:
             logger.info(f"No face in driving frame: {self.frame_ind}")
