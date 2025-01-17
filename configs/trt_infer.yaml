@@ -60,6 +60,7 @@ infer_params:
   flag_pasteback: True
   flag_do_crop: True
   flag_do_rot: True
+  flag_handle_no_face: False
 
   # NOT EXPOERTED PARAMS
   lip_normalize_threshold: 0.1 # threshold for flag_normalize_lip

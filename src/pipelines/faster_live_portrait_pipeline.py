@@ -55,6 +55,7 @@ class FasterLivePortraitPipeline:
     def init_vars(self, **kwargs):
         self.mask_crop = cv2.imread(self.cfg.infer_params.mask_crop_path, cv2.IMREAD_COLOR)
         self.frame_id = 0
+        self.last_out_crop = None
         self.src_lmk_pre = None
         self.R_d_0 = None
         self.x_d_0_info = None
@@ -427,11 +428,20 @@ class FasterLivePortraitPipeline:
         img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
         I_p_pstbk = torch.from_numpy(img_src).to(self.device).float()
         realtime = kwargs.get("realtime", False)
+        if self.cfg.infer_params.flag_handle_no_face:
+            src_face = await self.model_dict["face_analysis"].predict(img_bgr)
+            if len(src_face) == 0:
+                if not self.last_out_crop is None:
+                    return self.last_out_crop
+                else:
+                    return torch.tensor(img_src.astype(np.uint8)).cpu().numpy() 
+                    
+            
         if self.cfg.infer_params.flag_crop_driving_video:
             if self.src_lmk_pre is None:
                 src_face = await self.model_dict["face_analysis"].predict(img_bgr)
                 if len(src_face) == 0:
-                    return None, None, None, None
+                    return None
                 lmk = src_face[0]
                 lmk = await self.model_dict["landmark"].predict(img_rgb, lmk)
                 self.src_lmk_pre = lmk.copy()
@@ -507,6 +517,7 @@ class FasterLivePortraitPipeline:
         out_crop = await self._run(src_info, x_d_i_info, x_d_0_info, R_d_i, R_d_0, realtime, input_eye_ratio,
                                         input_lip_ratio,
                                         I_p_pstbk, **kwargs)
+        self.last_out_crop = out_crop
         return img_crop, out_crop
 
     def run_with_pkl(self, dri_motion_info, img_src, src_info, **kwargs):
