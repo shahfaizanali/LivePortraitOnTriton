@@ -429,8 +429,8 @@ class FasterLivePortraitPipeline:
         I_p_pstbk = torch.from_numpy(img_src).to(self.device).float()
         realtime = kwargs.get("realtime", False)
         if self.cfg.infer_params.flag_handle_no_face:
-            src_face = await self.model_dict["face_analysis"].predict(img_bgr)
-            if len(src_face) == 0:
+            faces = await self.model_dict["face_analysis"].predict(img_bgr)
+            if len(faces) == 0:
                 if not self.last_out_crop is None:
                     return self.last_out_crop
                 else:
