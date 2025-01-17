@@ -431,10 +431,7 @@ class FasterLivePortraitPipeline:
         if self.cfg.infer_params.flag_handle_no_face:
             faces = await self.model_dict["face_analysis"].predict(img_bgr)
             if len(faces) == 0:
-                if not self.last_out_crop is None:
-                    return self.last_out_crop
-                else:
-                    return torch.tensor(img_src.astype(np.uint8)).cpu().numpy() 
+              return torch.tensor(img_src.astype(np.uint8)).cpu().numpy() 
                     
             
         if self.cfg.infer_params.flag_crop_driving_video:
