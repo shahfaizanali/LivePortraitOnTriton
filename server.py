@@ -169,7 +169,7 @@ async def cleanup_peer_connection(pc):
         logger.info("Stopping audio track")
         pc.audio_track.stop()
         pc.audio_track = None
-        
+
     if hasattr(pc, "video_relayed_track") and pc.video_relayed_track is not None:
         logger.info("Stopping video relayed track")
         pc.video_relayed_track.stop()
@@ -334,7 +334,7 @@ async def on_shutdown(app):
 if __name__ == "__main__":
     app = web.Application(middlewares=[logging_middleware, is_authenticated_middleware])
     cors = aiohttp_cors.setup(app, defaults={
-    "https://*.hypelaunch.io": {  # Frontend 1's origin
+    "https://ps-dev-ce1b0.ravai.hypelaunch.io/": {  # Frontend 1's origin
         "allow_headers": "*",
         "allow_credentials": True,  # Allow cookies
     },
