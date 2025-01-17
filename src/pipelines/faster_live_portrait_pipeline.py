@@ -49,7 +49,7 @@ class FasterLivePortraitPipeline:
       for model_name in self.cfg.models:
           print(f"loading model: {model_name}")
           print(self.cfg.models[model_name])
-          await self.model_dict[model_name] = getattr(models, self.cfg.models[model_name]["name"])(
+          self.model_dict[model_name] = getattr(models, self.cfg.models[model_name]["name"])(
               **self.cfg.models[model_name])
 
     def init_vars(self, **kwargs):
