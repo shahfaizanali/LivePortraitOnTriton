@@ -336,11 +336,11 @@ if __name__ == "__main__":
     cors = aiohttp_cors.setup(app, defaults={
     "https://ps-dev-ce1b0.ravai.hypelaunch.io": {  # Replace with your frontend's origin
         "allow_headers": "*",
-        # "allow_credentials": True,  # Allow cookies
+        "allow_credentials": True,  # Allow cookies
         },
     "https://ps-dev-0ca77.ravai.hypelaunch.io": {  # Replace with your frontend's origin
         "allow_headers": "*",
-        # "allow_credentials": True,  # Allow cookies
+        "allow_credentials": True,  # Allow cookies
         },
     "http://localhost:5173": {  # Replace with your frontend's origin
         "allow_headers": "*",
