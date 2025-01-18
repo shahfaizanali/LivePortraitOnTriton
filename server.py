@@ -342,7 +342,7 @@ if __name__ == "__main__":
         "allow_headers": "*",
         # "allow_credentials": True,  # Allow cookies
         },
-    "http://localhost": {  # Replace with your frontend's origin
+    "http://localhost:5173": {  # Replace with your frontend's origin
         "allow_headers": "*",
         # "allow_credentials": True,  # Allow cookies
         }     
