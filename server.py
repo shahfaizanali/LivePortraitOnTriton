@@ -335,11 +335,13 @@ async def on_shutdown(app):
 if __name__ == "__main__":
     app = web.Application(middlewares=[logging_middleware, is_authenticated_middleware])
     cors = aiohttp_cors.setup(app, defaults={
-    "*": {  # Replace with your frontend's origin
-        "allow_headers": "*",
-        # "allow_credentials": True,  # Allow cookies
-        }
-    })
+    "*": aiohttp_cors.ResourceOptions(
+        expose_headers="*",                  # Expose all headers to the client
+        allow_headers="*",                   # Allow all request headers
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],  # Allowed HTTP methods
+        max_age=3600,                        # Cache preflight for 1 hour
+    )
+})
     app.on_shutdown.append(on_shutdown)
     app.router.add_get("/health", health)
     app.router.add_get("/", index)
