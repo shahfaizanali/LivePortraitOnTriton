@@ -233,11 +233,11 @@ async def offer(request):
     avatar_url = params["avatar_url"]
     config = OmegaConf.create(params["config"])
     merged_cfg = OmegaConf.merge(infer_cfg, config)
-    user_id = request["user_id"]
+    user_id = "ravaiavatartestuser"
     source_image = await download_file(avatar_url)
     pc = RTCPeerConnection(rtc_configuration)
     pc.whip_pc = RTCPeerConnection()
-    pc.user_id = request["user_id"]
+    pc.user_id = user_id
     broadcasters.add(pc)
     relay = MediaRelay()
 
