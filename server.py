@@ -233,7 +233,8 @@ async def offer(request):
     avatar_url = params["avatar_url"]
     config = OmegaConf.create(params["config"])
     merged_cfg = OmegaConf.merge(infer_cfg, config)
-    user_id = request["user_id"]
+    # user_id = request["user_id"]
+    user_id = "ravaitestuserid"
     source_image = await download_file(avatar_url)
     pc = RTCPeerConnection(rtc_configuration)
     pc.whip_pc = RTCPeerConnection()
@@ -334,9 +335,9 @@ async def on_shutdown(app):
 if __name__ == "__main__":
     app = web.Application(middlewares=[logging_middleware, is_authenticated_middleware])
     cors = aiohttp_cors.setup(app, defaults={
-    "https://ps-dev-ce1b0.ravai.hypelaunch.io": {  # Replace with your frontend's origin
+    "*": {  # Replace with your frontend's origin
         "allow_headers": "*",
-        "allow_credentials": True,  # Allow cookies
+        # "allow_credentials": True,  # Allow cookies
         }
     })
     app.on_shutdown.append(on_shutdown)
