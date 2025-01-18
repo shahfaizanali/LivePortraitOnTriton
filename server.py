@@ -233,8 +233,7 @@ async def offer(request):
     avatar_url = params["avatar_url"]
     config = OmegaConf.create(params["config"])
     merged_cfg = OmegaConf.merge(infer_cfg, config)
-    # user_id = request["user_id"]
-    user_id = "ravaitestuserid"
+    user_id = request["user_id"]
     source_image = await download_file(avatar_url)
     pc = RTCPeerConnection(rtc_configuration)
     pc.whip_pc = RTCPeerConnection()
@@ -335,13 +334,19 @@ async def on_shutdown(app):
 if __name__ == "__main__":
     app = web.Application(middlewares=[logging_middleware, is_authenticated_middleware])
     cors = aiohttp_cors.setup(app, defaults={
-    "*": aiohttp_cors.ResourceOptions(
-        expose_headers="*",                  # Expose all headers to the client
-        allow_headers="*",                   # Allow all request headers
-        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],  # Allowed HTTP methods
-        max_age=3600,                        # Cache preflight for 1 hour
-    )
-})
+    "https://ps-dev-ce1b0.ravai.hypelaunch.io": {  # Replace with your frontend's origin
+        "allow_headers": "*",
+        # "allow_credentials": True,  # Allow cookies
+        },
+    "https://ps-dev-0ca77.ravai.hypelaunch.io": {  # Replace with your frontend's origin
+        "allow_headers": "*",
+        # "allow_credentials": True,  # Allow cookies
+        },
+    "http://localhost": {  # Replace with your frontend's origin
+        "allow_headers": "*",
+        # "allow_credentials": True,  # Allow cookies
+        }     
+    })
     app.on_shutdown.append(on_shutdown)
     app.router.add_get("/health", health)
     app.router.add_get("/", index)
