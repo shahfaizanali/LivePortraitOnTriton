@@ -290,7 +290,7 @@ async def offer(request):
             pc.video_track = local_video
             # pc.video_track = track
             # pc.realyed_video_track = relayed
-            pc.addTrack(track)
+            # pc.addTrack(track)
               
         if track.kind == "audio":
             # relayed = relay.subscribe(track, buffered=True)
