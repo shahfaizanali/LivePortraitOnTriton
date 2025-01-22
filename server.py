@@ -100,35 +100,35 @@ class VideoTransformTrack(MediaStreamTrack):
         frame = await self.track.recv()
         img = frame.to_ndarray(format="rgb24")
 
-        if not self.initialized:
-            self.pipe = FasterLivePortraitPipeline(cfg=self.cfg, is_animal=False)
-            await self.pipe.initialize()
-            await self.pipe.prepare_source(self.source_image, realtime=True)
-            self.initialized = True
+        # if not self.initialized:
+        #     self.pipe = FasterLivePortraitPipeline(cfg=self.cfg, is_animal=False)
+        #     await self.pipe.initialize()
+        #     await self.pipe.prepare_source(self.source_image, realtime=True)
+        #     self.initialized = True
 
-        t0 = time.time()
-        first_frame = (self.frame_ind == 0)
-        if self.reset_pose:
-            self.pipe.src_lmk_pre = None
-            first_frame = True
-            self.reset_pose = False
-        out_crop = await self.pipe.run(img, self.pipe.src_imgs[0], self.pipe.src_infos[0], first_frame=first_frame)
-        self.frame_ind += 1
-        if out_crop is None:
-            logger.info(f"No face in driving frame: {self.frame_ind}")
-            return frame
-        # self.infer_times.append(time.time() - t0)
-        # logger.info(time.time() - t0)
+        # t0 = time.time()
+        # first_frame = (self.frame_ind == 0)
+        # if self.reset_pose:
+        #     self.pipe.src_lmk_pre = None
+        #     first_frame = True
+        #     self.reset_pose = False
+        # out_crop = await self.pipe.run(img, self.pipe.src_imgs[0], self.pipe.src_infos[0], first_frame=first_frame)
+        # self.frame_ind += 1
+        # if out_crop is None:
+        #     logger.info(f"No face in driving frame: {self.frame_ind}")
+        #     return frame
+        # # self.infer_times.append(time.time() - t0)
+        # # logger.info(time.time() - t0)
 
-        # # Ensure out_crop is 556x556
-        # out_crop = cv2.resize(out_crop, (556, 556))
+        # # # Ensure out_crop is 556x556
+        # # out_crop = cv2.resize(out_crop, (556, 556))
 
-        # # Write the processed frame to FFmpeg
-        if self.ffmpeg_process and self.ffmpeg_process.stdin:
-            self.ffmpeg_process.stdin.write(out_crop.tobytes())
+        # # # Write the processed frame to FFmpeg
+        # if self.ffmpeg_process and self.ffmpeg_process.stdin:
+        #     self.ffmpeg_process.stdin.write(out_crop.tobytes())
 
         # # # Return the processed frame to the WebRTC client as well (optional)
-        new_frame = VideoFrame.from_ndarray(out_crop, format="rgb24")
+        new_frame = VideoFrame.from_ndarray(img, format="rgb24")
         new_frame.pts = frame.pts
         new_frame.time_base = frame.time_base
         return new_frame
