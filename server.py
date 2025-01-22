@@ -222,7 +222,8 @@ async def handle_recording(broadcaster_pc):
     # recorder.addTrack(broadcaster_pc.realyed_video_track)
     await broadcaster_pc.recorder.start()
     for track, context in broadcaster_pc.recorder._MediaRecorder__tracks.items():
-        logger.info(context)
+        logger.info(context.stream)
+        logger.info(context.task)
 
 async def handle_live_streaming(broadcaster_pc):
     whip_url = "http://localhost:8080/api/whip"
