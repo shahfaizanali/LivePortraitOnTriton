@@ -129,8 +129,8 @@ class VideoTransformTrack(MediaStreamTrack):
 
         # # Return the processed frame to the WebRTC client as well (optional)
         new_frame = VideoFrame.from_ndarray(out_crop, format="rgb24")
-        # new_frame.pts = frame.pts
-        # new_frame.time_base = frame.time_base
+        new_frame.pts = frame.pts
+        new_frame.time_base = frame.time_base
         return new_frame
       except Exception as e:
             traceback.print_exc()
@@ -289,7 +289,7 @@ async def offer(request):
             pc.addTrack(relayed)
               
         if track.kind == "audio":
-            relayed = relay.subscribe(track, buffered=True)
+            relayed = relay.subscribe(track, buffered=False)
             pc.audio_track = track
             pc.realyed_audio_track = relayed
         if hasattr(pc, "audio_track") and hasattr(pc, "video_track"):
