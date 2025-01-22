@@ -440,7 +440,7 @@ class FasterLivePortraitPipeline:
             if self.src_lmk_pre is None:
                 src_face = await self.model_dict["face_analysis"].predict(img_bgr)
                 if len(src_face) == 0:
-                    return None
+                    return torch.tensor(img_src.astype(np.uint8)).cpu().numpy()
                 lmk = src_face[0]
                 lmk = await self.model_dict["landmark"].predict(img_rgb, lmk)
                 self.src_lmk_pre = lmk.copy()
@@ -475,7 +475,7 @@ class FasterLivePortraitPipeline:
             if self.src_lmk_pre is None:
                 src_face = await self.model_dict["face_analysis"].predict(img_bgr)
                 if len(src_face) == 0:
-                    return None, None, None, None
+                    return torch.tensor(img_src.astype(np.uint8)).cpu().numpy()
                 lmk = src_face[0]
                 lmk = await self.model_dict["landmark"].predict(img_rgb, lmk)
                 self.src_lmk_pre = lmk.copy()

@@ -22,6 +22,7 @@ from aiortc import (
     RTCRtpSender,
 )
 from aiortc.contrib.media import MediaRelay
+from aiortc.contrib.media import MediaRecorder
 from av import VideoFrame
 from omegaconf import OmegaConf
 
@@ -159,6 +160,11 @@ async def cleanup_peer_connection(pc):
     """
     logger.info(f"Cleaning up PeerConnection for user {getattr(pc, 'user_id', 'unknown')}")
 
+    if hasattr(pc, "recorder") and pc.recorder is not None:
+        logger.info("Closing recorder")
+        await pc.recorder.stop()
+        pc.recorder = None
+
     # 1. Stop any custom or local tracks you have saved on the PC
     #    For example, if you store them on pc.video_track / pc.audio_track
     if hasattr(pc, "video_track") and pc.video_track is not None:
@@ -207,10 +213,19 @@ async def stream(request):
     content = open("viewer.html", "r").read()
     return web.Response(content_type="text/html", text=content)
 
-async def create_whip_client(broadcaster_pc):
+async def handle_recording(broadcaster_pc):
+    recording_path = f"/recordings/{broadcaster_pc.user_id}/{uuid.uuid4()}.mp4"
+    recorder = broadcaster_pc.recorder = MediaRecorder(recording_path)
+    recorder.addTrack(broadcaster_pc.realyed_video_track)
+    recorder.addTrack(broadcaster_pc.realyed_audio_track)
+    await broadcaster_pc.recorder.start()
+
+async def handle_live_streaming(broadcaster_pc):
     whip_url = "http://localhost:8080/api/whip"
 
-    pc = broadcaster_pc.whip_pc
+    pc = broadcaster_pc.whip_pc = RTCPeerConnection()
+    pc.addTrack(broadcaster_pc.realyed_video_track)
+    pc.addTrack(broadcaster_pc.realyed_audio_track)
 
     # Create an SDP offer
     offer = await pc.createOffer()
@@ -235,8 +250,8 @@ async def offer(request):
     merged_cfg = OmegaConf.merge(infer_cfg, config)
     user_id = "ravaiavatartestuser"
     source_image = await download_file(avatar_url)
+    recording = params["recording"]
     pc = RTCPeerConnection(rtc_configuration)
-    pc.whip_pc = RTCPeerConnection()
     pc.user_id = user_id
     broadcasters.add(pc)
     relay = MediaRelay()
@@ -265,16 +280,17 @@ async def offer(request):
             pc.video_track = local_video
             pc.realyed_video_track = relayed
             pc.addTrack(relayed)
-            pc.whip_pc.addTrack(relayed)
               
         if track.kind == "audio":
             relayed = relay.subscribe(track, buffered=True)
             pc.audio_track = track
             pc.realyed_audio_track = relayed
-            pc.whip_pc.addTrack(relayed)
         if hasattr(pc, "audio_track") and hasattr(pc, "video_track"):
           if pc.audio_track and pc.video_track:
-              asyncio.ensure_future(create_whip_client(pc))
+              if recording:
+                  asyncio.ensure_future(handle_recording(pc))
+              else:    
+                  asyncio.ensure_future(handle_live_streaming(pc))
 
     @pc.on("datachannel")
     def on_datachannel(channel):

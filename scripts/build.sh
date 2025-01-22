@@ -4,6 +4,7 @@ BASE_PORT=8081
 IMAGE_NAME="live-portrait:triton"
 CHECKPOINTS_DIR="/avatar/checkpoints"
 IMAGES_DIR="/avatar/images"
+RECORDINGS_DIR="/avatar/recordings"
 
 cd /avatar/LivePortraitOnTriton
 
@@ -36,5 +37,6 @@ for i in {0..0}; do
     docker run --restart unless-stopped --gpus=all -d --name $CONTAINER_NAME \
         -v $CHECKPOINTS_DIR:/LivePortraitOnTriton/checkpoints \
         -v $IMAGES_DIR:/LivePortraitOnTriton/images \
+        -v $RECORDINGS_DIR:/LivePortraitOnTriton/recordings \
         --network host -e PORT=$PORT $IMAGE_NAME
 done
