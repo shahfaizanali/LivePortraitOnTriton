@@ -36,7 +36,7 @@ for i in {0..0}; do
     PORT=$((BASE_PORT + i))
     docker run --restart unless-stopped --gpus=all -d --name $CONTAINER_NAME \
         -v $CHECKPOINTS_DIR:/LivePortraitOnTriton/checkpoints \
-        -v $IMAGES_DIR:/LivePortraitOnTriton/images \
-        -v $RECORDINGS_DIR:/LivePortraitOnTriton/recordings \
+        -v $IMAGES_DIR:/images \
+        -v $RECORDINGS_DIR:/recordings \
         --network host -e PORT=$PORT $IMAGE_NAME
 done
