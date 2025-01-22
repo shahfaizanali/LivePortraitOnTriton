@@ -98,7 +98,7 @@ class VideoTransformTrack(MediaStreamTrack):
       frame = None
       try:  
         frame = await self.track.recv()
-        # img = frame.to_ndarray(format="rgb24")
+        img = frame.to_ndarray(format="rgb24")
 
         # if not self.initialized:
         #     self.pipe = FasterLivePortraitPipeline(cfg=self.cfg, is_animal=False)
@@ -128,9 +128,9 @@ class VideoTransformTrack(MediaStreamTrack):
         #     self.ffmpeg_process.stdin.write(out_crop.tobytes())
 
         # # # Return the processed frame to the WebRTC client as well (optional)
-        # new_frame = VideoFrame.from_ndarray(out_crop, format="rgb24")
-        # new_frame.pts = frame.pts
-        # new_frame.time_base = frame.time_base
+        new_frame = VideoFrame.from_ndarray(img, format="rgb24")
+        new_frame.pts = frame.pts
+        new_frame.time_base = frame.time_base
         return frame
       except Exception as e:
             traceback.print_exc()
