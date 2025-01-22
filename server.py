@@ -282,14 +282,14 @@ async def offer(request):
               await pc.recorder.stop()
         logger.info(f"Received track: {track.kind}")
         if track.kind == "video":
-            local_video = VideoTransformTrack(relay.subscribe(track, buffered=False), user_id, source_image, merged_cfg)
-            relayed = relay.subscribe(local_video, buffered=False)
+            local_video = VideoTransformTrack(relay.subscribe(track, buffered=True), user_id, source_image, merged_cfg)
+            relayed = relay.subscribe(local_video, buffered=True)
             pc.video_track = local_video
             pc.realyed_video_track = relayed
             pc.addTrack(relayed)
               
         if track.kind == "audio":
-            relayed = relay.subscribe(track, buffered=False)
+            relayed = relay.subscribe(track, buffered=True)
             pc.audio_track = track
             pc.realyed_audio_track = relayed
         if hasattr(pc, "audio_track") and hasattr(pc, "video_track"):
