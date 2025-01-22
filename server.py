@@ -275,6 +275,11 @@ async def offer(request):
 
     @pc.on("track")
     def on_track(track):
+        @track.on("ended")
+        async def on_ended():
+            if hasattr(pc, "recorder") and pc.recorder is not None:
+              logger.info("Track ended Closing recorder")
+              await pc.recorder.stop()
         logger.info(f"Received track: {track.kind}")
         if track.kind == "video":
             local_video = VideoTransformTrack(relay.subscribe(track, buffered=False), user_id, source_image, merged_cfg)
