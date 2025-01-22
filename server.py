@@ -214,6 +214,7 @@ async def stream(request):
     return web.Response(content_type="text/html", text=content)
 
 async def handle_recording(broadcaster_pc):
+    logger.info("Starting Recording")
     recording_path = f"/recordings/{broadcaster_pc.user_id}/{uuid.uuid4()}.mp4"
     os.makedirs(os.path.dirname(recording_path), exist_ok=True)
     recorder = broadcaster_pc.recorder = MediaRecorder(recording_path)
