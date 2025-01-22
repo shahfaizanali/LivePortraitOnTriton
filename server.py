@@ -32,7 +32,7 @@ from middleware import is_authenticated_middleware
 from file_downloader import download_file
 
 # Set up logging
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 # STUN server configuration
@@ -301,6 +301,7 @@ async def offer(request):
                   recorder = pc.recorder = MediaRecorder(recording_path)
                   recorder.addTrack(pc.audio_track)
                   recorder.addTrack(pc.video_track)
+                  logger.info(recorder._MediaRecorder__tracks)
                   asyncio.ensure_future(handle_recording(pc))
               else:    
                   asyncio.ensure_future(handle_live_streaming(pc))
