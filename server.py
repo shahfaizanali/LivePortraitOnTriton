@@ -121,7 +121,7 @@ class VideoTransformTrack(MediaStreamTrack):
         # logger.info(time.time() - t0)
 
         # # Ensure out_crop is 556x556
-        out_crop = cv2.resize(out_crop, (640, 480))
+        out_crop = cv2.resize(out_crop, (556, 556))
 
         # # Write the processed frame to FFmpeg
         if self.ffmpeg_process and self.ffmpeg_process.stdin:
