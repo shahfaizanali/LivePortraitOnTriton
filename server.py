@@ -215,6 +215,7 @@ async def stream(request):
 
 async def handle_recording(broadcaster_pc):
     recording_path = f"/recordings/{broadcaster_pc.user_id}/{uuid.uuid4()}.mp4"
+    os.makedirs(os.path.dirname(recording_path), exist_ok=True)
     recorder = broadcaster_pc.recorder = MediaRecorder(recording_path)
     recorder.addTrack(broadcaster_pc.realyed_video_track)
     recorder.addTrack(broadcaster_pc.realyed_audio_track)
