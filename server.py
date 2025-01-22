@@ -131,7 +131,7 @@ class VideoTransformTrack(MediaStreamTrack):
         new_frame = VideoFrame.from_ndarray(out_crop, format="rgb24")
         new_frame.pts = frame.pts
         new_frame.time_base = frame.time_base
-        return frame
+        return new_frame
       except Exception as e:
             traceback.print_exc()
             return frame
