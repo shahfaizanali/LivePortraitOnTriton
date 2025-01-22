@@ -221,6 +221,8 @@ async def handle_recording(broadcaster_pc):
     # recorder.addTrack(broadcaster_pc.realyed_audio_track)
     # recorder.addTrack(broadcaster_pc.realyed_video_track)
     await broadcaster_pc.recorder.start()
+    for track, context in broadcaster_pc.recorder._MediaRecorder__tracks.items():
+        logger.info(context)
 
 async def handle_live_streaming(broadcaster_pc):
     whip_url = "http://localhost:8080/api/whip"
@@ -299,9 +301,8 @@ async def offer(request):
                   recording_path = f"/recordings/{pc.user_id}/{uuid.uuid4()}.mp4"
                   os.makedirs(os.path.dirname(recording_path), exist_ok=True)
                   recorder = pc.recorder = MediaRecorder(recording_path)
-                  recorder.addTrack(pc.audio_track)
-                  recorder.addTrack(pc.video_track)
-                  logger.info(recorder._MediaRecorder__tracks)
+                  recorder.addTrack(pc.realyed_audio_track)
+                  recorder.addTrack(pc.realyed_video_track)
                   asyncio.ensure_future(handle_recording(pc))
               else:    
                   asyncio.ensure_future(handle_live_streaming(pc))
