@@ -214,12 +214,12 @@ async def stream(request):
     return web.Response(content_type="text/html", text=content)
 
 async def handle_recording(broadcaster_pc):
-    logger.info("Starting Recording")
-    recording_path = f"/recordings/{broadcaster_pc.user_id}/{uuid.uuid4()}.mp4"
-    os.makedirs(os.path.dirname(recording_path), exist_ok=True)
-    recorder = broadcaster_pc.recorder = MediaRecorder(recording_path)
-    recorder.addTrack(broadcaster_pc.realyed_audio_track)
-    recorder.addTrack(broadcaster_pc.realyed_video_track)
+    # logger.info("Starting Recording")
+    # recording_path = f"/recordings/{broadcaster_pc.user_id}/{uuid.uuid4()}.mp4"
+    # os.makedirs(os.path.dirname(recording_path), exist_ok=True)
+    # recorder = broadcaster_pc.recorder = MediaRecorder(recording_path)
+    # recorder.addTrack(broadcaster_pc.realyed_audio_track)
+    # recorder.addTrack(broadcaster_pc.realyed_video_track)
     await broadcaster_pc.recorder.start()
 
 async def handle_live_streaming(broadcaster_pc):
@@ -295,6 +295,12 @@ async def offer(request):
         if hasattr(pc, "audio_track") and hasattr(pc, "video_track"):
           if pc.audio_track and pc.video_track:
               if recording:
+                  logger.info("Starting Recording")
+                  recording_path = f"/recordings/{pc.user_id}/{uuid.uuid4()}.mp4"
+                  os.makedirs(os.path.dirname(recording_path), exist_ok=True)
+                  recorder = pc.recorder = MediaRecorder(recording_path)
+                  recorder.addTrack(pc.realyed_audio_track)
+                  recorder.addTrack(pc.realyed_video_track)
                   asyncio.ensure_future(handle_recording(pc))
               else:    
                   asyncio.ensure_future(handle_live_streaming(pc))
