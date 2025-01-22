@@ -129,8 +129,8 @@ class VideoTransformTrack(MediaStreamTrack):
 
         # # Return the processed frame to the WebRTC client as well (optional)
         new_frame = VideoFrame.from_ndarray(out_crop, format="rgb24")
-        new_frame.pts = frame.pts
-        new_frame.time_base = frame.time_base
+        # new_frame.pts = frame.pts
+        # new_frame.time_base = frame.time_base
         return new_frame
       except Exception as e:
             traceback.print_exc()
