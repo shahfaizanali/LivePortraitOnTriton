@@ -219,7 +219,7 @@ async def handle_recording(broadcaster_pc):
     os.makedirs(os.path.dirname(recording_path), exist_ok=True)
     recorder = broadcaster_pc.recorder = MediaRecorder(recording_path)
     recorder.addTrack(broadcaster_pc.realyed_video_track)
-    recorder.addTrack(broadcaster_pc.realyed_audio_track)
+    # recorder.addTrack(broadcaster_pc.realyed_audio_track)
     await broadcaster_pc.recorder.start()
 
 async def handle_live_streaming(broadcaster_pc):
