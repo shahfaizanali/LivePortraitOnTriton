@@ -292,12 +292,12 @@ async def offer(request):
             relayed = relay.subscribe(track, buffered=True)
             pc.audio_track = track
             pc.realyed_audio_track = relayed
-        if hasattr(pc, "audio_track") and hasattr(pc, "video_track"):
-          if pc.audio_track and pc.video_track:
-              if recording:
-                  asyncio.ensure_future(handle_recording(pc))
-              else:    
-                  asyncio.ensure_future(handle_live_streaming(pc))
+        # if hasattr(pc, "audio_track") and hasattr(pc, "video_track"):
+        #   if pc.audio_track and pc.video_track:
+              # if recording:
+              #     asyncio.ensure_future(handle_recording(pc))
+              # else:    
+              #     asyncio.ensure_future(handle_live_streaming(pc))
 
     @pc.on("datachannel")
     def on_datachannel(channel):
