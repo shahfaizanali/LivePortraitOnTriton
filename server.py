@@ -285,9 +285,9 @@ async def offer(request):
               await pc.recorder.stop()
         logger.info(f"Received track: {track.kind}")
         if track.kind == "video":
-            local_video = VideoTransformTrack(relay.subscribe(track), user_id, source_image, merged_cfg)
+            local_video = VideoTransformTrack(relay.subscribe(track, buffered=False), user_id, source_image, merged_cfg)
             # relayed = relay.subscribe(local_video, buffered=True)
-            pc.video_track = relay.subscribe(local_video)
+            pc.video_track = local_video
             # pc.video_track = track
             # pc.realyed_video_track = relayed
             # pc.addTrack(track)
@@ -296,18 +296,18 @@ async def offer(request):
             # relayed = relay.subscribe(track, buffered=True)
             pc.audio_track = track
             # pc.realyed_audio_track = relayed
-        if hasattr(pc, "audio_track") and hasattr(pc, "video_track"):
-          if pc.audio_track and pc.video_track:
-              if recording:
-                  logger.info("Starting Recording")
-                  recording_path = f"/recordings/{pc.user_id}/{uuid.uuid4()}.mp4"
-                  os.makedirs(os.path.dirname(recording_path), exist_ok=True)
-                  recorder = pc.recorder = MediaRecorder(recording_path)
-                  recorder.addTrack(pc.audio_track)
-                  recorder.addTrack(pc.video_track)
-                  asyncio.ensure_future(handle_recording(pc))
-              else:    
-                  asyncio.ensure_future(handle_live_streaming(pc))
+        # if hasattr(pc, "audio_track") and hasattr(pc, "video_track"):
+        #   if pc.audio_track and pc.video_track:
+              # if recording:
+              #     logger.info("Starting Recording")
+              #     recording_path = f"/recordings/{pc.user_id}/{uuid.uuid4()}.mp4"
+              #     os.makedirs(os.path.dirname(recording_path), exist_ok=True)
+              #     recorder = pc.recorder = MediaRecorder(recording_path)
+              #     recorder.addTrack(pc.audio_track)
+              #     recorder.addTrack(pc.video_track)
+              #     asyncio.ensure_future(handle_recording(pc))
+              # else:    
+              #     asyncio.ensure_future(handle_live_streaming(pc))
 
     @pc.on("datachannel")
     def on_datachannel(channel):
