@@ -287,10 +287,10 @@ async def offer(request):
         if track.kind == "video":
             local_video = VideoTransformTrack(relay.subscribe(track, buffered=False), user_id, source_image, merged_cfg)
             # relayed = relay.subscribe(local_video, buffered=True)
-            pc.video_track = local_video
+            # pc.video_track = local_video
             # pc.video_track = track
             # pc.realyed_video_track = relayed
-            # pc.addTrack(track)
+            pc.addTrack(local_video)
               
         if track.kind == "audio":
             # relayed = relay.subscribe(track, buffered=True)
