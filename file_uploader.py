@@ -17,7 +17,7 @@ async def upload_file(
         form = aiohttp.FormData()
         form.add_field('threadId', thread_id)
         
-        file_handle = open(path, 'rb')
+        file_handle = open(file_path, 'rb')
         form.add_field(
             'file',
             file_handle,
