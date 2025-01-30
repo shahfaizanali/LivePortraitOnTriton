@@ -7,9 +7,6 @@ import time
 import traceback
 import uuid
 
-import cv2
-import ffmpeg
-import numpy as np
 import aiohttp_cors
 from aiohttp import web
 import aiohttp
@@ -30,6 +27,7 @@ from src.pipelines.faster_live_portrait_pipeline import FasterLivePortraitPipeli
 from src.utils.utils import video_has_audio
 from middleware import is_authenticated_middleware
 from file_downloader import download_file
+from file_uploader import upload_file
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -215,7 +213,7 @@ async def stream(request):
 
 async def handle_recording(broadcaster_pc):
     logger.info("Starting Recording")
-    recording_path = f"/recordings/{broadcaster_pc.user_id}/{uuid.uuid4()}.mp4"
+    broadcaster_pc.recording_path = recording_path = f"/recordings/{broadcaster_pc.user_id}/{uuid.uuid4()}.mp4"
     os.makedirs(os.path.dirname(recording_path), exist_ok=True)
     recorder = broadcaster_pc.recorder = MediaRecorder(recording_path, options = {"video_size": "512x512"})
     recorder.addTrack(broadcaster_pc.realyed_video_track)
@@ -250,14 +248,14 @@ async def offer(request):
     avatar_url = params["avatar_url"]
     config = OmegaConf.create(params["config"])
     merged_cfg = OmegaConf.merge(infer_cfg, config)
-    user_id = "ravaiavatartestuser"
-    source_image = await download_file(avatar_url)
+    pc.user_id = user_id = request["user_id"]
+    pc.token = request["token"]
+    pc.source_image = source_image = await download_file(avatar_url)
     recording = params["recording"]
+    pc.thread_id = params["thread_id"]
     pc = RTCPeerConnection(rtc_configuration)
-    pc.user_id = user_id
     broadcasters.add(pc)
     relay = MediaRelay()
-
 
     @pc.on("iceconnectionstatechange")
     async def on_iceconnectionstatechange():
@@ -275,13 +273,14 @@ async def offer(request):
 
     @pc.on("track")
     def on_track(track):
-        @track.on("ended")
-        async def on_ended():
-            if hasattr(pc, "recorder") and pc.recorder is not None:
-              logger.info("Track ended Closing recorder")
-              await pc.recorder.stop()
         logger.info(f"Received track: {track.kind}")
         if track.kind == "video":
+            @track.on("ended")
+            async def on_ended():
+                if hasattr(pc, "recorder") and pc.recorder is not None:
+                  logger.info("Track ended Closing recorder")
+                  await pc.recorder.stop()
+                  await upload_file(pc.recording_path, pc.token, pc.thread_id)
             local_video = VideoTransformTrack(relay.subscribe(track, buffered=False), user_id, source_image, merged_cfg)
             relayed = relay.subscribe(local_video, buffered=False)
             pc.video_track = local_video

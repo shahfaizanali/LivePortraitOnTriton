@@ -6,15 +6,19 @@ JWT_SECRET = os.getenv("JWT_SECRET", "secretprovid")
 
 @web.middleware
 async def is_authenticated_middleware(request, handler):
-    return await handler(request)
     if request.method == "OPTIONS" or request.path == "/stream":
         return await handler(request)
     token = request.cookies.get("token")
+
+    if not token:
+        token = request.headers.get("X-Auth-Token")
+
     if not token:
         return web.json_response({"error": "Access denied. No token provided."}, status=401)
     try:
         decoded_data = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
         user_id = decoded_data.get("id")
+        request["token"] = token
         request["user_id"] = user_id
         return await handler(request)
     except jwt.ExpiredSignatureError:
