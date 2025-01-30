@@ -2,7 +2,6 @@
 
 import aiohttp
 import os
-from typing import Optional, Dict
 
 async def upload_file(
     file_path: str,
@@ -18,14 +17,15 @@ async def upload_file(
         form = aiohttp.FormData()
         form.add_field('threadId', thread_id)
         
-        with open(file_path, 'rb') as file_object:
-            form.add_field(
-                'file',
-                file_object,
-                filename=os.path.basename(file_path),
-                content_type='application/octet-stream'
-            )
+        file_handle = open(path, 'rb')
+        form.add_field(
+            'file',
+            file_handle,
+            filename=os.path.basename(file_path),
+            content_type='application/octet-stream'
+        )
 
         async with session.post(upload_endpoint, data=form, headers={"x-auth-token": auth_token}) as response:
             response.raise_for_status()
+            file_handle.close()
             return await response.json()
