@@ -8,7 +8,7 @@ async def upload_file(
     auth_token: str,
     thread_id: str,
 ) -> dict:
-    upload_endpoint = "https://ps-dev-ce1b0.ravai.hypelaunch.io/api/threads/uploadFilesForThread"
+    upload_endpoint = "https://ps-api-dev-ce1b0.ravai.hypelaunch.io/api/threads/uploadFilesForThread"
 
     if not os.path.isfile(file_path):
         raise FileNotFoundError(f"File not found: {file_path}")
@@ -26,6 +26,6 @@ async def upload_file(
         )
 
         async with session.post(upload_endpoint, data=form, headers={"x-auth-token": auth_token}) as response:
-            response.raise_for_status()
             file_handle.close()
+            response.raise_for_status()
             return await response.json()
