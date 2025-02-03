@@ -211,6 +211,11 @@ async def stream(request):
     content = open("viewer.html", "r").read()
     return web.Response(content_type="text/html", text=content)
 
+async def status(request):
+    data = await fetch_active_sessions()
+    available = len(data) < 3
+    return web.json_response({"available": available})
+
 async def handle_recording(broadcaster_pc):
     logger.info("Starting Recording")
     broadcaster_pc.recording_path = recording_path = f"/recordings/{broadcaster_pc.user_id}/{uuid.uuid4()}.mp4"
@@ -220,6 +225,16 @@ async def handle_recording(broadcaster_pc):
     recorder.addTrack(broadcaster_pc.realyed_audio_track)
     await broadcaster_pc.recorder.start()
 
+async def fetch_active_sessions():
+    status_url = "http://localhost:8080/api/status"
+    async with aiohttp.ClientSession() as session:
+        async with session.get(status_url) as response:
+            if response.status == 200:
+                data = await response.json()
+                return data
+            else:
+                return []
+            
 async def handle_live_streaming(broadcaster_pc):
     whip_url = "http://localhost:8080/api/whip"
 
@@ -373,6 +388,7 @@ if __name__ == "__main__":
     app.router.add_get("/health", health)
     app.router.add_get("/", index)
     app.router.add_get("/stream", stream)
+    app.router.add_get("/status", status)
     app.router.add_get("/perf", perf)
     offer_route = app.router.add_post("/offer", offer)
     cors.add(offer_route)
