@@ -388,10 +388,11 @@ if __name__ == "__main__":
     app.router.add_get("/health", health)
     app.router.add_get("/", index)
     app.router.add_get("/stream", stream)
-    app.router.add_get("/status", status)
+    status_route = app.router.add_get("/status", status)
     app.router.add_get("/perf", perf)
     offer_route = app.router.add_post("/offer", offer)
     cors.add(offer_route)
+    cors.add(status_route)
 
     port = int(os.getenv("PORT", 8081))
     logger.info(f"Starting server on {port}")
