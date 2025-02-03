@@ -381,7 +381,7 @@ if __name__ == "__main__":
         },
     "http://localhost:5173": {  # Replace with your frontend's origin
         "allow_headers": "*",
-        # "allow_credentials": True,  # Allow cookies
+        "allow_credentials": True,  # Allow cookies
         }     
     })
     app.on_shutdown.append(on_shutdown)
