@@ -246,8 +246,8 @@ async def offer(request):
     params = await request.json()
     offer = RTCSessionDescription(sdp=params["sdp"], type=params["type"])
     avatar_url = params["avatar_url"]
-    config = OmegaConf.create(params["config"])
-    merged_cfg = OmegaConf.merge(infer_cfg, config)
+    # config = OmegaConf.create(params["config"])
+    # merged_cfg = OmegaConf.merge(infer_cfg, config)
     pc = RTCPeerConnection(rtc_configuration)
     pc.user_id = user_id = request["user_id"]
     pc.token = request["token"]
@@ -281,7 +281,7 @@ async def offer(request):
                   logger.info("Track ended Closing recorder")
                   await pc.recorder.stop()
                   await upload_file(pc.recording_path, pc.token, pc.thread_id)
-            local_video = VideoTransformTrack(relay.subscribe(track, buffered=False), user_id, source_image, merged_cfg)
+            local_video = VideoTransformTrack(relay.subscribe(track, buffered=False), user_id, source_image, infer_cfg)
             relayed = relay.subscribe(local_video, buffered=False)
             pc.video_track = local_video
             pc.realyed_video_track = relayed
