@@ -213,7 +213,7 @@ async def stream(request):
 
 async def status(request):
     data = await fetch_active_sessions()
-    available = len(data) < 3
+    available = len(data) < 1
     return web.json_response({"available": available})
 
 async def handle_recording(broadcaster_pc):
