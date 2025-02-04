@@ -267,7 +267,7 @@ async def offer(request):
     pc.user_id = user_id = request["user_id"]
     pc.token = request["token"]
     pc.source_image = source_image = await download_file(avatar_url)
-    recording = params["recording"]
+    recording = params["record"]
     pc.thread_id = params["thread_id"]
     broadcasters.add(pc)
     relay = MediaRelay()
